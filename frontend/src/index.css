@@ -263,12 +263,13 @@ body {
 }
 
 .camera-guide-box {
-  width: 78%;
-  height: 65%;
+  width: min(88%, 560px);
+  aspect-ratio: 2.15 / 1;
+  max-height: 75%;
   border: 2px dashed rgba(59, 130, 246, 0.85);
   border-radius: 0.75rem;
   position: relative;
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.50);
 }
 
 .camera-corner {

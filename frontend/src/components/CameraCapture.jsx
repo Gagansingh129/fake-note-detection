@@ -75,13 +75,27 @@ export default function CameraCapture({ onAnalyze, isLoading }) {
     const vWidth = video.videoWidth || 640;
     const vHeight = video.videoHeight || 480;
 
-    // Isolate the central guide box area (78% width, 52% height)
-    // This physically excludes the user's head, face, hair, and room background
-    const cropW = Math.round(vWidth * 0.78);
-    const cropH = Math.round(vHeight * 0.52);
+    // Maintain true Indian banknote landscape aspect ratio (~2.15:1)
+    // regardless of whether camera is mobile portrait (720x1280) or desktop landscape (1280x720)
+    const targetAspect = 2.15;
+    let cropW, cropH;
+
+    if (vWidth < vHeight) {
+      // Mobile / Portrait stream: note spans horizontal width
+      cropW = Math.round(vWidth * 0.90);
+      cropH = Math.round(cropW / targetAspect);
+    } else {
+      // Desktop / Landscape stream
+      cropH = Math.round(vHeight * 0.70);
+      cropW = Math.round(cropH * targetAspect);
+      if (cropW > vWidth * 0.92) {
+        cropW = Math.round(vWidth * 0.92);
+        cropH = Math.round(cropW / targetAspect);
+      }
+    }
+
     const cropX = Math.round((vWidth - cropW) / 2);
-    // Align with the guide frame, safely below the user's head
-    const cropY = Math.round((vHeight - cropH) / 2 + vHeight * 0.04);
+    const cropY = Math.round((vHeight - cropH) / 2);
 
     canvas.width = cropW;
     canvas.height = cropH;

@@ -164,8 +164,12 @@ class ImageQualityChecker:
             meta["detection_method"] = "insufficient_features"
             return image_bgr, (0, 0, w, h), False, meta
 
-        # Case 1: Already cropped to typical banknote aspect ratio (1.60 to 2.85)
-        if 1.60 <= aspect_input <= 2.85:
+        if (w <= 256 and h <= 256) or (w < 300 and h < 300 and 0.80 <= aspect_input <= 1.25):
+            meta["detection_method"] = "pre_scaled_sample"
+            return image_bgr, (0, 0, w, h), False, meta
+
+        # Case 1: Already framed to typical banknote aspect ratio (1.50 to 2.95)
+        if 1.50 <= aspect_input <= 2.95:
             meta["detection_method"] = "pre_aligned_frame"
             return image_bgr, (0, 0, w, h), False, meta
 
@@ -247,30 +251,22 @@ class ImageQualityChecker:
             except Exception:
                 pass
 
-        # Bounding box fallback
+        # Bounding box fallback (only when contour isolates note cleanly from surroundings)
         if best_box:
             x, y, cw, ch = best_box
-            pad_x = int(cw * 0.02)
-            pad_y = int(ch * 0.02)
-            x0 = max(0, x - pad_x)
-            y0 = max(0, y - pad_y)
-            x1 = min(w, x + cw + pad_x)
-            y1 = min(h, y + ch + pad_y)
-            cropped = image_bgr[y0:y1, x0:x1]
-            meta["detection_method"] = "bounding_box"
-            meta["aspect_ratio"] = round(float(x1 - x0) / max(1, y1 - y0), 2)
-            return cropped, (x0, y0, x1 - x0, y1 - y0), True, meta
-
-        # Camera frame fallback (center focus)
-        if w >= 450 and h >= 300 and aspect_input < 1.60:
-            cw = int(w * 0.80)
-            ch = int(h * 0.52)
-            x0 = (w - cw) // 2
-            y0 = int(h * 0.24)
-            cropped = image_bgr[y0:y0 + ch, x0:x0 + cw]
-            meta["detection_method"] = "camera_center_guide"
-            meta["aspect_ratio"] = round(float(cw) / ch, 2)
-            return cropped, (x0, y0, cw, ch), True, meta
+            # Check if box is likely an internal fragment (e.g. spans full width but cuts height in half)
+            is_internal_band = (cw >= w * 0.88 and ch < h * 0.70) or (ch >= h * 0.88 and cw < w * 0.70)
+            if not is_internal_band and (cw * ch) >= (w * h * 0.25):
+                pad_x = int(cw * 0.03)
+                pad_y = int(ch * 0.03)
+                x0 = max(0, x - pad_x)
+                y0 = max(0, y - pad_y)
+                x1 = min(w, x + cw + pad_x)
+                y1 = min(h, y + ch + pad_y)
+                cropped = image_bgr[y0:y1, x0:x1]
+                meta["detection_method"] = "bounding_box"
+                meta["aspect_ratio"] = round(float(x1 - x0) / max(1, y1 - y0), 2)
+                return cropped, (x0, y0, x1 - x0, y1 - y0), True, meta
 
         return image_bgr, (0, 0, w, h), False, meta
 
