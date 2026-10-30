@@ -5,7 +5,10 @@
  * the React frontend and the FastAPI backend.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+// Empty string default uses relative paths so Nginx reverse-proxies seamlessly in production & Docker
+const API_BASE_URL = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== '')
+  ? import.meta.env.VITE_API_URL
+  : '';
 
 export const resolveImageUrl = (path) => {
   if (!path) return '';

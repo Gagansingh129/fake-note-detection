@@ -31,7 +31,7 @@ export default function About() {
   });
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/transparency')
+    fetch('/api/transparency')
       .then((res) => res.json())
       .then((data) => {
         if (data.dataset) setTransparency(data);
