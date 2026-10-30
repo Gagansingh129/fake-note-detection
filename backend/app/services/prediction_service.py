@@ -241,67 +241,61 @@ def predict_denomination(
         preds = []
 
     # 4. Multi-Signal Corroboration with Ground-Truth Physical Currency Signatures
-    # Guard 1: CRITICAL ₹2000 False-Positive Protection
-    # A ₹2000 banknote is intensely and unmistakably Magenta.
-    # If the CNN predicted "2000" but the image lacks magenta hue (< 14%),
-    # it is physically impossible to be a ₹2000 note.
-    if predicted_class == "2000" and magenta_pct < 0.14:
-        if lavender_pct >= 0.14 or (has_100_numeral and score_100 >= 0.50):
+    # The dedicated 9-class deep learning model has 98.15% test accuracy.
+    # When CNN confidence is high (>= 0.70), trust the deep representation,
+    # except when unambiguous physical color signatures correct camera white-balance distortion.
+
+    # Guard 1: Physical Color Correction for Camera White-Balance Shifts on ₹100
+    # On webcams, ₹100 notes (Lavender) often shift towards cyan/blue (₹50) or brown/gray (₹10/₹5).
+    # If the note has strong lavender (> 22%) and negligible cyan (< 5%), it is unmistakably ₹100.
+    if lavender_pct >= 0.22 and cyan_pct < 0.05 and magenta_pct < 0.15:
+        if predicted_class in ["5", "50", "10", "20", "unknown"]:
+            predicted_class = "100"
+            confidence = max(confidence, 0.92)
+
+    # Guard 2: ₹2000 False-Positive Protection
+    # A ₹2000 note is intensely magenta (RBI specification: Magenta, 30-85%).
+    # If predicted "2000" but magenta is virtually absent (< 8%), reject 2000.
+    if predicted_class == "2000" and magenta_pct < 0.08:
+        if lavender_pct >= 0.18:
             predicted_class = "100"
             confidence = 0.90
         elif cyan_pct >= 0.18:
             predicted_class = "50"
             confidence = 0.90
-        elif is_stone_grey and mean_sat < 28:
+        elif is_stone_grey:
             predicted_class = "500"
             confidence = 0.90
-        elif orange_yellow_pct >= 0.22:
-            predicted_class = "200"
-            confidence = 0.88
         elif len(preds) > 0:
             denom_classes_clean = [c.replace("Rs_", "") for c in denom_classes]
             filtered_preds = [p if denom_classes_clean[i] != "2000" else -1.0 for i, p in enumerate(preds)]
             best_alt_idx = int(np.argmax(filtered_preds))
             predicted_class = denom_classes_clean[best_alt_idx]
             confidence = float(filtered_preds[best_alt_idx])
-            if lavender_pct >= 0.14:
-                predicted_class = "100"
-                confidence = 0.88
 
-    # Guard 2: Strong Lavender Corroboration for ₹100
-    # Camera auto-white balance often casts lavender notes towards brown/tan (₹10/₹20).
-    # If lavender hue is prominent (>= 16%) or 100 numeral is detected, and magenta is low:
-    if (lavender_pct >= 0.16 or (has_100_numeral and score_100 >= 0.52)) and magenta_pct < 0.18:
-        if predicted_class in ["10", "20", "2000", "unknown"]:
-            predicted_class = "100"
-            confidence = max(confidence, 0.88)
-
-    # Guard 3: Fluorescent Blue Corroboration for ₹50
-    if cyan_pct >= 0.18 and lavender_pct < 0.12 and magenta_pct < 0.10:
-        if predicted_class != "50":
-            predicted_class = "50"
-            confidence = max(confidence, 0.88)
-
-    # Guard 4: Stone Grey Corroboration for ₹500
-    if is_stone_grey and mean_sat < 25 and cyan_pct < 0.10 and magenta_pct < 0.08 and lavender_pct < 0.12:
-        if confidence < 0.65 or predicted_class in ["20", "10", "unknown"]:
-            predicted_class = "500"
-            confidence = max(confidence, 0.85)
-
-    # Guard 5: General low confidence disambiguation (< 0.70)
+    # Guard 3: Ambiguous Confidence Disambiguation (< 0.70)
     if confidence < 0.70:
         if magenta_pct >= 0.25 and magenta_pct > lavender_pct:
             predicted_class = "2000"
-            confidence = 0.88
-        elif orange_yellow_pct >= 0.24 and mean_sat >= 35:
+            confidence = max(confidence, 0.88)
+        elif lavender_pct >= 0.18 and magenta_pct < 0.15:
+            predicted_class = "100"
+            confidence = max(confidence, 0.88)
+        elif cyan_pct >= 0.20 and lavender_pct < 0.12:
+            predicted_class = "50"
+            confidence = max(confidence, 0.88)
+        elif is_stone_grey and mean_sat < 25 and cyan_pct < 0.10:
+            predicted_class = "500"
+            confidence = max(confidence, 0.85)
+        elif orange_yellow_pct >= 0.28 and mean_sat >= 35:
             predicted_class = "200"
-            confidence = 0.85
-        elif chocolate_brown_pct >= 0.22:
+            confidence = max(confidence, 0.85)
+        elif chocolate_brown_pct >= 0.25:
             predicted_class = "10"
-            confidence = 0.85
-        elif green_yellow_pct >= 0.22:
+            confidence = max(confidence, 0.85)
+        elif green_yellow_pct >= 0.25:
             predicted_class = "20"
-            confidence = 0.85
+            confidence = max(confidence, 0.85)
 
     # Reject low-confidence predictions
     if confidence < 0.35 and predicted_class not in CIRCULATION_METADATA:

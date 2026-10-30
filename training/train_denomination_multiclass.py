@@ -118,24 +118,30 @@ def train_multiclass_model(
     class_weights_arr = compute_class_weight("balanced", classes=np.unique(y_train), y=y_train)
     class_weights = {i: float(w) for i, w in zip(np.unique(y_train), class_weights_arr)}
 
-    # 2. Build Model
-    base_model = tf.keras.applications.EfficientNetB0(
-        weights="imagenet",
-        include_top=False,
-        input_shape=(224, 224, 3)
-    )
-    base_model.trainable = False
+    # 2. Build or Load Model
+    if output_model_path.exists():
+        print(f"[*] Loading pre-existing EfficientNet architecture from {output_model_path.name}...")
+        model = tf.keras.models.load_model(str(output_model_path))
+        base_model = model.get_layer("efficientnetb0")
+        base_model.trainable = False
+    else:
+        base_model = tf.keras.applications.EfficientNetB0(
+            weights="imagenet",
+            include_top=False,
+            input_shape=(224, 224, 3)
+        )
+        base_model.trainable = False
 
-    inputs = tf.keras.layers.Input(shape=(224, 224, 3), name="input_banknote")
-    x = base_model(inputs, training=False)
-    x = tf.keras.layers.GlobalAveragePooling2D(name="gap")(x)
-    x = tf.keras.layers.BatchNormalization(name="head_bn")(x)
-    x = tf.keras.layers.Dropout(0.35, name="head_dropout")(x)
-    x = tf.keras.layers.Dense(128, activation="relu", name="head_dense")(x)
-    x = tf.keras.layers.Dropout(0.25, name="head_dropout2")(x)
-    outputs = tf.keras.layers.Dense(len(classes), activation="softmax", name="denomination_probabilities")(x)
+        inputs = tf.keras.layers.Input(shape=(224, 224, 3), name="input_banknote")
+        x = base_model(inputs, training=False)
+        x = tf.keras.layers.GlobalAveragePooling2D(name="gap")(x)
+        x = tf.keras.layers.BatchNormalization(name="head_bn")(x)
+        x = tf.keras.layers.Dropout(0.35, name="head_dropout")(x)
+        x = tf.keras.layers.Dense(128, activation="relu", name="head_dense")(x)
+        x = tf.keras.layers.Dropout(0.25, name="head_dropout2")(x)
+        outputs = tf.keras.layers.Dense(len(classes), activation="softmax", name="denomination_probabilities")(x)
 
-    model = tf.keras.models.Model(inputs=inputs, outputs=outputs, name="noteguard_denomination_net")
+        model = tf.keras.models.Model(inputs=inputs, outputs=outputs, name="noteguard_denomination_net")
 
     # Phase 1: Train Head
     print("\n--- Phase 1: Training Classification Head ---")

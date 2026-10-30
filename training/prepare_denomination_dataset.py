@@ -79,46 +79,98 @@ def collect_source_images() -> Dict[str, List[Path]]:
                 for img in fldr.glob("*.*"):
                     add_if_valid(img, fldr.name)
 
-    # 4. From dataset/raw/fake for 1000 and 5
+    # 4. From dataset/raw/genuine_5_ref for authentic clean 5 notes
+    ref_5 = Path("dataset/raw/genuine_5_ref")
+    if ref_5.exists():
+        for img in ref_5.glob("*.jpg"):
+            add_if_valid(img, "5")
+
+    # 5. From dataset/raw/fake for bogus 1000
     raw_fake = Path("dataset/raw/fake")
     if raw_fake.exists():
         for img in raw_fake.glob("*bogus_1000*.*"):
             add_if_valid(img, "1000")
-        for img in raw_fake.glob("*dummy*5*.*"):
-            add_if_valid(img, "5")
 
     return sources
 
 def augment_image(img_bgr: np.ndarray, index: int) -> np.ndarray:
-    """Applies controlled geometric and photometric augmentations for realistic camera simulation."""
+    """Applies realistic camera, hand occlusion, and illumination augmentations."""
     h, w = img_bgr.shape[:2]
     aug = img_bgr.copy()
 
-    # Slight rotation (-8 to +8 degrees)
-    angle = ((index % 7) - 3) * 2.5
+    # 1. Perspective / Tilt simulation (±6 degrees)
+    if index % 2 == 1:
+        d = int(w * 0.04)
+        pts1 = np.float32([[0, 0], [w, 0], [0, h], [w, h]])
+        dx = ((index % 5) - 2) * (d // 2)
+        dy = ((index % 4) - 2) * (d // 2)
+        pts2 = np.float32([[dx, dy], [w - dx, dy], [-dx, h - dy], [w + dx, h - dy]])
+        M_p = cv2.getPerspectiveTransform(pts1, pts2)
+        aug = cv2.warpPerspective(aug, M_p, (w, h), borderMode=cv2.BORDER_REFLECT)
+
+    # 2. Rotation (-6 to +6 degrees)
+    angle = ((index % 7) - 3) * 2.0
     if angle != 0:
         M = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1.0)
         aug = cv2.warpAffine(aug, M, (w, h), borderMode=cv2.BORDER_REFLECT)
 
-    # Brightness adjustment
-    brightness_factor = 0.80 + ((index % 5) * 0.10)  # 0.80 to 1.20
-    aug = np.clip(aug.astype(np.float32) * brightness_factor, 0, 255).astype(np.uint8)
-
-    # Contrast adjustment
+    # 3. Realistic Room Lighting Gradient
     if index % 3 == 0:
-        contrast = 0.90 + ((index % 4) * 0.08)
-        aug = np.clip((aug.astype(np.float32) - 128.0) * contrast + 128.0, 0, 255).astype(np.uint8)
+        grad_direction = (index % 4)
+        if grad_direction == 0:
+            grad = np.tile(np.linspace(0.80, 1.20, w), (h, 1))
+        elif grad_direction == 1:
+            grad = np.tile(np.linspace(1.20, 0.80, w), (h, 1))
+        elif grad_direction == 2:
+            grad = np.tile(np.linspace(0.85, 1.15, h), (w, 1)).T
+        else:
+            grad = np.tile(np.linspace(1.15, 0.85, h), (w, 1)).T
+        aug = np.clip(aug.astype(np.float32) * grad[:, :, np.newaxis], 0, 255).astype(np.uint8)
 
-    # Slight blur (simulate phone camera soft focus)
-    if index % 4 == 0:
-        aug = cv2.GaussianBlur(aug, (3, 3), 0.5)
+    # 4. Color Temperature / White Balance Shift
+    if index % 4 == 1:
+        b, g, r = cv2.split(aug)
+        r = np.clip(r.astype(np.float32) * 1.10, 0, 255).astype(np.uint8)
+        b = np.clip(b.astype(np.float32) * 0.90, 0, 255).astype(np.uint8)
+        aug = cv2.merge([b, g, r])
+    elif index % 4 == 2:
+        b, g, r = cv2.split(aug)
+        b = np.clip(b.astype(np.float32) * 1.10, 0, 255).astype(np.uint8)
+        r = np.clip(r.astype(np.float32) * 0.90, 0, 255).astype(np.uint8)
+        aug = cv2.merge([b, g, r])
+
+    # 5. Saturation Jitter (webcam desaturation)
+    if index % 3 == 1:
+        hsv = cv2.cvtColor(aug, cv2.COLOR_BGR2HSV).astype(np.float32)
+        sat_factor = 0.70 + ((index % 5) * 0.12)
+        hsv[:, :, 1] = np.clip(hsv[:, :, 1] * sat_factor, 0, 255)
+        aug = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+
+    # 6. Overall Brightness & Contrast
+    brightness = 0.85 + ((index % 5) * 0.08)
+    contrast = 0.90 + ((index % 4) * 0.07)
+    aug = np.clip((aug.astype(np.float32) - 128.0) * contrast + 128.0 * brightness, 0, 255).astype(np.uint8)
+
+    # 7. Hand / Finger holding occlusion on borders (simulated user thumbs across all classes)
+    if index % 4 == 3:
+        side = (index % 2)
+        cx = int(w * 0.06) if side == 0 else int(w * 0.94)
+        cy = int(h * (0.35 + ((index % 3) * 0.15)))
+        axes = (int(w * 0.06), int(h * 0.16))
+        skin_color = (
+            int(110 + (index % 30)),
+            int(135 + (index % 30)),
+            int(175 + (index % 35))
+        )
+        cv2.ellipse(aug, (cx, cy), axes, 0, 0, 360, skin_color, -1)
+        cv2.GaussianBlur(aug, (3, 3), 0.5, dst=aug)
 
     return aug
 
 def build_denomination_dataset(
     output_dir: Path = Path("dataset/denomination"),
     target_size: Tuple[int, int] = (224, 224),
-    target_train_per_class: int = 80,
+    target_train_per_class: int = 120,
     train_ratio: float = 0.70,
     val_ratio: float = 0.15,
     test_ratio: float = 0.15,
