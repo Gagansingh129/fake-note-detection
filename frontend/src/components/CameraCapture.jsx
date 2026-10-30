@@ -18,6 +18,14 @@ export default function CameraCapture({ onAnalyze, isLoading }) {
   const startCamera = async () => {
     setCameraError(null);
     try {
+      if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        throw new Error('INSECURE_CONTEXT');
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('NO_MEDIA_DEVICES');
+      }
+
       const constraints = {
         video: {
           facingMode: 'environment', // Prefer back camera on mobile devices
@@ -36,8 +44,10 @@ export default function CameraCapture({ onAnalyze, isLoading }) {
     } catch (err) {
       console.error('[Camera Access Error]:', err);
       let msg = 'Failed to access device camera. Please check camera permissions.';
-      if (err.name === 'NotAllowedError') {
-        msg = 'Camera permission was denied. Please allow camera access in your browser settings.';
+      if (err.message === 'INSECURE_CONTEXT' || err.message === 'NO_MEDIA_DEVICES') {
+        msg = 'Browser Security Restriction: Web browsers block camera access on plain HTTP (http://) IP addresses. To use the camera, open "chrome://flags/#unsafely-treat-insecure-origin-as-secure" in Chrome/Edge, add "http://' + window.location.host + '", enable it, and relaunch your browser.';
+      } else if (err.name === 'NotAllowedError') {
+        msg = 'Camera permission was denied. Please click the camera/lock icon in your browser address bar and allow camera access.';
       } else if (err.name === 'NotFoundError') {
         msg = 'No video camera detected on this system.';
       }
