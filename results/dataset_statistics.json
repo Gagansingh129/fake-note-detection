@@ -1,0 +1,20 @@
+{
+    "train": 629,
+    "validation": 135,
+    "test": 134,
+    "by_class": {
+        "train:fake": 298,
+        "train:genuine": 331,
+        "validation:fake": 64,
+        "validation:genuine": 71,
+        "test:fake": 63,
+        "test:genuine": 71
+    },
+    "by_denomination": {
+        "unknown": 898
+    },
+    "by_authenticity": {
+        "genuine": 473,
+        "fake": 425
+    }
+}

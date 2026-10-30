@@ -1,0 +1,64 @@
+# NoteGuard AI - Multi-Container Docker Compose Orchestration
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: noteguard-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - PYTHONUNBUFFERED=1
+      - TF_ENABLE_ONEDNN_OPTS=0
+      - MPLCONFIGDIR=/tmp/matplotlib
+      - DATABASE_URL=sqlite:////app/data/noteguard.db
+    volumes:
+      # Persistent SQLite database storage
+      - noteguard_db:/app/data
+      # Persistent uploaded image storage
+      - noteguard_uploads:/app/uploads
+      # Persistent Grad-CAM output heatmaps
+      - noteguard_results:/app/results
+      # Direct read-only mount for AI model artifacts
+      - ./backend/models:/app/models:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)\" || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - noteguard-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=
+    container_name: noteguard-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - noteguard-network
+
+networks:
+  noteguard-network:
+    name: noteguard-network
+    driver: bridge
+
+volumes:
+  noteguard_db:
+    name: noteguard_db_volume
+  noteguard_uploads:
+    name: noteguard_uploads_volume
+  noteguard_results:
+    name: noteguard_results_volume
+

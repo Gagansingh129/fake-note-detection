@@ -1,0 +1,15 @@
+NoteGuard AI - Stage 1 Denomination Classification Report
+============================================================
+              precision    recall  f1-score   support
+
+    Rs_Rs_10       0.45      0.62      0.53         8
+   Rs_Rs_100       1.00      0.12      0.22         8
+    Rs_Rs_20       0.67      0.57      0.62        14
+   Rs_Rs_200       1.00      0.17      0.29         6
+  Rs_Rs_2000       0.67      0.80      0.73         5
+    Rs_Rs_50       0.62      0.76      0.68        21
+   Rs_Rs_500       0.47      0.64      0.55        14
+
+    accuracy                           0.58        76
+   macro avg       0.70      0.53      0.51        76
+weighted avg       0.66      0.58      0.55        76

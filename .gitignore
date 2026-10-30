@@ -1,0 +1,42 @@
+# Python & Virtual Environments
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.ipynb_checkpoints/
+
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.*.local
+
+# Dataset & Training Data
+dataset/
+training_data/
+
+# Temporary Wheels & Build Artifacts
+backend/wheels/
+scratch/
+
+# Database, Uploads & Temporary Results
+*.sqlite3
+*.db
+backend/app/noteguard.db
+backend/uploads/*
+!backend/uploads/.gitkeep
+results/gradcam/*
+!results/gradcam/.gitkeep
+
+# Environment & Secrets (Never commit actual secret values)
+.env
+.env.local
+docker-compose.override.yml
+
+# IDEs & System
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

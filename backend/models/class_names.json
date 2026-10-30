@@ -1,0 +1,17 @@
+{
+    "authenticity": [
+        "fake",
+        "genuine"
+    ],
+    "denomination": [
+        "Rs_5",
+        "Rs_10",
+        "Rs_20",
+        "Rs_50",
+        "Rs_100",
+        "Rs_200",
+        "Rs_500",
+        "Rs_1000",
+        "Rs_2000"
+    ]
+}

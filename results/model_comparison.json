@@ -1,0 +1,35 @@
+[
+    {
+        "model_name": "EfficientNetB0 (Transfer)",
+        "accuracy": 0.8552036199095022,
+        "precision": 0.8970588235294118,
+        "recall": 0.8714285714285714,
+        "f1_score": 0.8840579710144928,
+        "roc_auc": 0.9283068783068784,
+        "latency_ms": 108.51,
+        "model_size_mb": 28.4,
+        "parameters": "4,213,668"
+    },
+    {
+        "model_name": "Custom CNN (Baseline)",
+        "accuracy": 0.3665158371040724,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "roc_auc": 0.5478835978835979,
+        "latency_ms": 71.66,
+        "model_size_mb": 1.24,
+        "parameters": "102,465"
+    },
+    {
+        "model_name": "MobileNetV2 (Lightweight)",
+        "accuracy": 0.6334841628959276,
+        "precision": 0.6334841628959276,
+        "recall": 1.0,
+        "f1_score": 0.775623268698061,
+        "roc_auc": 0.5,
+        "latency_ms": 83.36,
+        "model_size_mb": 9.2,
+        "parameters": "2,340,033"
+    }
+]

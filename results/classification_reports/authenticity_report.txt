@@ -1,0 +1,10 @@
+NoteGuard AI - Stage 2 Authenticity Classification Report
+============================================================
+              precision    recall  f1-score   support
+
+        fake       0.79      0.83      0.81        81
+     genuine       0.90      0.87      0.88       140
+
+    accuracy                           0.86       221
+   macro avg       0.84      0.85      0.85       221
+weighted avg       0.86      0.86      0.86       221

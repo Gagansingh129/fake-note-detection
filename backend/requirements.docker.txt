@@ -1,0 +1,11 @@
+# NoteGuard AI - Streamlined Backend Dependencies for Docker
+# Note: tensorflow, numpy, requests are already in tensorflow/tensorflow:latest
+keras>=3.15.0
+fastapi>=0.110.0
+uvicorn>=0.28.0
+python-multipart>=0.0.9
+sqlalchemy>=2.0.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+pillow>=10.0.0
+opencv-python-headless>=4.8.0
