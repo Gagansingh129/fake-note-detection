@@ -91,6 +91,12 @@ def collect_source_images() -> Dict[str, List[Path]]:
         for img in raw_fake.glob("*bogus_1000*.*"):
             add_if_valid(img, "1000")
 
+    # 6. From dataset/raw/genuine_100_camera for authentic camera 100 notes
+    ref_100_cam = Path("dataset/raw/genuine_100_camera")
+    if ref_100_cam.exists():
+        for img in ref_100_cam.glob("*.jpg"):
+            add_if_valid(img, "100")
+
     return sources
 
 def augment_image(img_bgr: np.ndarray, index: int) -> np.ndarray:

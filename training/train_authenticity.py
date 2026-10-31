@@ -15,6 +15,7 @@ import tempfile
 
 os.environ.pop("HOME", None)
 os.environ["USERPROFILE"] = "C:\\Users\\LOQ"
+os.environ["KERAS_HOME"] = os.path.abspath("scratch/.keras")
 mpl_dir = os.path.join(tempfile.gettempdir(), "matplotlib_noteguard")
 os.makedirs(mpl_dir, exist_ok=True)
 os.environ["MPLCONFIGDIR"] = mpl_dir
@@ -123,12 +124,29 @@ def train_authenticity(
 
     # 2. Phase 1: Feature Extraction
     print("\n--- PHASE 1: Feature Extraction (Base Model Frozen) ---")
-    model = build_efficientnet_model(
-        input_shape=(224, 224, 3),
-        num_classes=num_classes,
-        learning_rate=initial_lr,
-        fine_tune_at=None
-    )
+    if Path(output_model_path).exists():
+        print(f"[*] Loading pre-existing EfficientNet architecture from {Path(output_model_path).name}...")
+        model = tf.keras.models.load_model(output_model_path)
+        base_model = None
+        for layer in model.layers:
+            if "efficientnet" in layer.name:
+                base_model = layer
+                break
+        if base_model:
+            base_model.trainable = False
+        loss = "binary_crossentropy" if num_classes == 2 else "sparse_categorical_crossentropy"
+        model.compile(
+            optimizer=tf.keras.optimizers.Adam(learning_rate=initial_lr),
+            loss=loss,
+            metrics=["accuracy"]
+        )
+    else:
+        model = build_efficientnet_model(
+            input_shape=(224, 224, 3),
+            num_classes=num_classes,
+            learning_rate=initial_lr,
+            fine_tune_at=None
+        )
 
     history_head = model.fit(
         train_ds,
