@@ -71,14 +71,6 @@ def collect_source_images() -> Dict[str, List[Path]]:
                             add_if_valid(img, d)
                         break
 
-    # 3. From scratch/repo6 database/classification
-    db_c = Path("scratch/repo6/data_dump/image - useless/database/classification")
-    if db_c.exists():
-        for fldr in db_c.iterdir():
-            if fldr.is_dir() and fldr.name in DENOMINATION_CLASSES:
-                for img in fldr.glob("*.*"):
-                    add_if_valid(img, fldr.name)
-
     # 4. From dataset/raw/genuine_5_ref for authentic clean 5 notes
     ref_5 = Path("dataset/raw/genuine_5_ref")
     if ref_5.exists():
@@ -96,6 +88,12 @@ def collect_source_images() -> Dict[str, List[Path]]:
     if ref_100_cam.exists():
         for img in ref_100_cam.glob("*.jpg"):
             add_if_valid(img, "100")
+
+    # 7. From dataset/train/genuine for authentic camera 50 notes
+    raw_genuine_train = Path("dataset/train/genuine")
+    if raw_genuine_train.exists():
+        for img in raw_genuine_train.glob("note_camera_real50_*.*"):
+            add_if_valid(img, "50")
 
     return sources
 
@@ -171,12 +169,16 @@ def augment_image(img_bgr: np.ndarray, index: int) -> np.ndarray:
         cv2.ellipse(aug, (cx, cy), axes, 0, 0, 360, skin_color, -1)
         cv2.GaussianBlur(aug, (3, 3), 0.5, dst=aug)
 
+    # 8. Subtle webcam motion softness / blur
+    if index % 3 == 2:
+        aug = cv2.GaussianBlur(aug, (3, 3), 0.5)
+
     return aug
 
 def build_denomination_dataset(
     output_dir: Path = Path("dataset/denomination"),
     target_size: Tuple[int, int] = (224, 224),
-    target_train_per_class: int = 120,
+    target_train_per_class: int = 140,
     train_ratio: float = 0.70,
     val_ratio: float = 0.15,
     test_ratio: float = 0.15,
