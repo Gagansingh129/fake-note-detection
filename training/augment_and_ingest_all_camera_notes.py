@@ -26,23 +26,36 @@ USER_CAMERA_SOURCES = {
         "scratch/latest_user_uploads/upload_1793594721888_camera_6a037e5627894e9890ef2e98d3212533.jpg", # ₹10 old in hand
         "scratch/latest_user_uploads/upload_1793594767336_camera_701a1f8f3082426c9711d93c5b3da314.jpg", # ₹10 on desk 1
         "scratch/latest_user_uploads/upload_1793594801271_camera_eddc91dccd2241bc802dacb0d7675d43.jpg", # ₹10 on desk 2
+        "scratch/new_test_scans/*103*.jpg", # ₹10 new
+        "scratch/new_test_scans/*106*.jpg", # ₹10 new
+        "scratch/new_test_scans/*107*.jpg", # ₹10 new
+        "scratch/new_test_scans/*108*.jpg", # ₹10 new
+        "scratch/new_test_scans/*109*.jpg", # ₹10 new
     ],
     "20": [
         "scratch/latest_user_uploads/upload_1793594659634_camera_aa72aeba79394d60b86c340dacfde314.jpg", # ₹20 in hand
         "scratch/latest_user_uploads/upload_1793594823730_camera_e020663450f14151a878671b4280d694.jpg", # ₹20 on desk 1
         "scratch/latest_user_uploads/upload_1793594838881_camera_947926ecadd84f66bce0e876b39bf496.jpg", # ₹20 on desk 2
+        "scratch/new_test_scans/*104*.jpg", # ₹20 new
+        "scratch/new_test_scans/*113*.jpg", # ₹20 new desk
     ],
     "50": [
-        "scratch/latest_user_uploads/upload_1793594635771_camera_7521002a944548d09ab2b463e2ca4bbe.jpg", # ₹50 in hand
+        "dataset/raw/genuine/*50*.*",
+        "scratch/repo6/CNN-based-classification-(PRIMARY)/dataset/comp_data/50_*/*.*",
     ],
     "100": [
+        "scratch/latest_user_uploads/upload_1793594635771_camera_7521002a944548d09ab2b463e2ca4bbe.jpg", # ₹100 in hand
         "scratch/latest_user_uploads/upload_1793594863466_camera_839842c48bd54c48b0fa5c9f0cb09f15.jpg", # ₹100 on desk
+        "scratch/new_test_scans/*105*.jpg", # ₹100 in hand
+        "scratch/new_test_scans/*111*.jpg", # ₹100 on desk
+        "scratch/new_test_scans/*112*.jpg", # ₹100 on desk
         "scratch/user_scans/*.jpg",
         "dataset/raw/genuine_100_camera/*.jpg",
     ],
     "200": [
         "scratch/latest_user_uploads/upload_1793594886292_camera_eaeb61ede5e140fbb4acf6926f9b4cb7.jpg", # ₹200 on desk
         "scratch/latest_user_uploads/upload_1793568524991_da3c2db74da44b94b7419d3ca25aa462.1000397013.jpg",
+        "scratch/new_test_scans/*110*.jpg", # ₹200 on desk
     ],
     "500": [
         # Ingest high-res authentic 500 notes to create realistic webcam variants

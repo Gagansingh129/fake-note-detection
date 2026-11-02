@@ -249,39 +249,39 @@ def predict_denomination(
     # Only correct when CNN confidence is ambiguous or when predicted class is "unknown"
     if confidence < 0.70 or predicted_class == "unknown":
         # 1a. Lavender (₹100)
-        if lavender_pct >= 0.20 and cyan_pct < 0.06 and magenta_pct < 0.15:
+        if lavender_pct >= 0.20 and lavender_pct > chocolate_brown_pct and cyan_pct < 0.22 and magenta_pct < 0.15:
             predicted_class = "100"
-            confidence = max(confidence, 0.90)
+            confidence = max(confidence, 0.92)
 
         # 1b. Fluorescent Blue (₹50)
-        elif cyan_pct >= 0.22 and lavender_pct < 0.06 and magenta_pct < 0.10:
+        elif cyan_pct >= 0.20 and cyan_pct > lavender_pct and magenta_pct < 0.10:
             predicted_class = "50"
-            confidence = max(confidence, 0.90)
+            confidence = max(confidence, 0.92)
 
         # 1c. Stone Grey (₹500)
-        elif is_stone_grey and mean_sat < 28.0 and lavender_pct < 0.06 and cyan_pct < 0.06:
+        elif is_stone_grey and mean_sat < 28.0 and lavender_pct < 0.08 and cyan_pct < 0.08:
             predicted_class = "500"
-            confidence = max(confidence, 0.90)
+            confidence = max(confidence, 0.92)
 
         # 1d. Bright Yellow / Orange (₹200)
-        elif orange_yellow_pct >= 0.30 and mean_sat >= 45.0 and lavender_pct < 0.06 and cyan_pct < 0.06:
+        elif orange_yellow_pct >= 0.28 and mean_sat >= 42.0 and lavender_pct < 0.08 and cyan_pct < 0.08:
             predicted_class = "200"
-            confidence = max(confidence, 0.90)
+            confidence = max(confidence, 0.92)
 
         # 1e. Chocolate Brown (₹10)
-        elif chocolate_brown_pct >= 0.26 and mean_val <= 175 and lavender_pct < 0.06 and cyan_pct < 0.06:
+        elif chocolate_brown_pct >= 0.22 and lavender_pct < 0.10 and cyan_pct < 0.08:
             predicted_class = "10"
-            confidence = max(confidence, 0.90)
+            confidence = max(confidence, 0.92)
 
         # 1f. Greenish Yellow (₹20)
-        elif green_yellow_pct >= 0.28 and lavender_pct < 0.06 and cyan_pct < 0.06:
+        elif green_yellow_pct >= 0.22 and lavender_pct < 0.08 and cyan_pct < 0.08:
             predicted_class = "20"
-            confidence = max(confidence, 0.90)
+            confidence = max(confidence, 0.92)
 
         # 1g. Magenta (₹2000)
         elif magenta_pct >= 0.25 and magenta_pct > lavender_pct:
             predicted_class = "2000"
-            confidence = max(confidence, 0.90)
+            confidence = max(confidence, 0.92)
 
     # Guard 2: ₹2000 False-Positive Protection
     # A ₹2000 note is intensely magenta (RBI specification: Magenta, 30-85%).
@@ -330,17 +330,26 @@ def predict_denomination(
             confidence = float(filtered_preds[best_alt_idx])
 
     # Guard 4: Lavender ₹100 Definitive Physical Match
-    # Lavender is uniquely characteristic of ₹100 banknotes in India.
-    if lavender_pct >= 0.25 and cyan_pct < 0.08:
+    # Lavender (Hue 105-140) is strictly unique to ₹100 banknotes in India.
+    # Other denominations (₹10, ₹20, ₹200, ₹500) never have >= 20% lavender.
+    if lavender_pct >= 0.20 and lavender_pct > chocolate_brown_pct and cyan_pct < 0.22:
         predicted_class = "100"
-        confidence = max(confidence, 0.94)
+        confidence = max(confidence, 0.95)
 
     # Guard 5: ₹20 False-Positive Protection
     # A ₹20 note in the Mahatma Gandhi New Series is Greenish Yellow.
-    # If predicted "20" but green_yellow is virtually absent (< 0.08) and chocolate_brown_pct >= 0.15, it is ₹10.
-    if predicted_class == "20" and green_yellow_pct < 0.08 and chocolate_brown_pct >= 0.15:
+    # If predicted "20" but green_yellow is virtually absent (< 0.08) and chocolate_brown_pct >= 0.15,
+    # and lavender is low (so it is not a ₹100 note on a desk), it is ₹10.
+    if predicted_class == "20" and green_yellow_pct < 0.08 and chocolate_brown_pct >= 0.15 and lavender_pct < 0.12:
         predicted_class = "10"
         confidence = max(confidence, 0.94)
+
+    # Guard 6: Direct Chocolate Brown ₹10 Physical Match
+    # Chocolate brown (Hue 8-22) is uniquely characteristic of ₹10 banknotes.
+    # When chocolate brown is prominent and lavender is low, it is definitively ₹10.
+    if chocolate_brown_pct >= 0.25 and chocolate_brown_pct > lavender_pct * 2.0 and green_yellow_pct < 0.12 and cyan_pct < 0.10:
+        predicted_class = "10"
+        confidence = max(confidence, 0.95)
 
     # Reject low-confidence predictions
     if confidence < 0.35 and predicted_class not in CIRCULATION_METADATA:
