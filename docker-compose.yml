@@ -24,6 +24,8 @@ services:
       - noteguard_results:/app/results
       # Direct read-only mount for AI model artifacts
       - ./backend/models:/app/models:ro
+      # Direct read-only mount for application code
+      - ./backend/app:/app/app:ro
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)\" || exit 1"]
       interval: 15s
