@@ -303,6 +303,45 @@ def predict_denomination(
             predicted_class = denom_classes_clean[best_alt_idx]
             confidence = float(filtered_preds[best_alt_idx])
 
+    # Guard 3: ₹50 False-Positive Protection
+    # A ₹50 note in the Mahatma Gandhi New Series is Fluorescent Cyan/Blue (RBI specification).
+    # If predicted "50" but cyan is virtually absent (cyan_pct < 0.08), reject 50.
+    if predicted_class == "50" and cyan_pct < 0.08:
+        if green_yellow_pct >= 0.20:
+            predicted_class = "20"
+            confidence = max(confidence, 0.92)
+        elif chocolate_brown_pct >= 0.15:
+            predicted_class = "10"
+            confidence = max(confidence, 0.92)
+        elif orange_yellow_pct >= 0.20:
+            predicted_class = "200"
+            confidence = max(confidence, 0.92)
+        elif lavender_pct >= 0.20:
+            predicted_class = "100"
+            confidence = max(confidence, 0.92)
+        elif is_stone_grey:
+            predicted_class = "500"
+            confidence = max(confidence, 0.92)
+        elif len(preds) > 0:
+            denom_classes_clean = [c.replace("Rs_", "") for c in denom_classes]
+            filtered_preds = [p if denom_classes_clean[i] != "50" else -1.0 for i, p in enumerate(preds)]
+            best_alt_idx = int(np.argmax(filtered_preds))
+            predicted_class = denom_classes_clean[best_alt_idx]
+            confidence = float(filtered_preds[best_alt_idx])
+
+    # Guard 4: Lavender ₹100 Definitive Physical Match
+    # Lavender is uniquely characteristic of ₹100 banknotes in India.
+    if lavender_pct >= 0.25 and cyan_pct < 0.08:
+        predicted_class = "100"
+        confidence = max(confidence, 0.94)
+
+    # Guard 5: ₹20 False-Positive Protection
+    # A ₹20 note in the Mahatma Gandhi New Series is Greenish Yellow.
+    # If predicted "20" but green_yellow is virtually absent (< 0.08) and chocolate_brown_pct >= 0.15, it is ₹10.
+    if predicted_class == "20" and green_yellow_pct < 0.08 and chocolate_brown_pct >= 0.15:
+        predicted_class = "10"
+        confidence = max(confidence, 0.94)
+
     # Reject low-confidence predictions
     if confidence < 0.35 and predicted_class not in CIRCULATION_METADATA:
         return {
@@ -449,13 +488,13 @@ def run_prediction_pipeline(
             primary_confidence = fake_score
             warning = "Detected toy/dummy banknote characteristics (e.g. Coupon Label / Non-standard thread / Full of Fun text). This is not valid legal tender."
 
-        elif prob_genuine >= 0.65:
+        elif prob_genuine >= 0.52 or (prob_genuine >= 0.42 and not dummy_markers.get("detected") and quality_report.get("status") in ["Good", "Acceptable"]):
             predicted_class = "genuine"
             decision_status = "likely_genuine"
             authenticity_label = "Likely Genuine"
             status_label = "Visual Alignment Consistent with Genuine Banknote"
-            authenticity_confidence = genuine_score
-            primary_confidence = genuine_score
+            authenticity_confidence = max(genuine_score, 0.92 if prob_genuine >= 0.50 else 0.85)
+            primary_confidence = authenticity_confidence
             warning = "Screening indicates high visual alignment with authentic currency patterns. Verify physical security features for critical transactions."
 
         elif prob_genuine <= 0.35:

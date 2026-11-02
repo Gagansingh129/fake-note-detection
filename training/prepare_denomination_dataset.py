@@ -83,11 +83,12 @@ def collect_source_images() -> Dict[str, List[Path]]:
         for img in raw_fake.glob("*bogus_1000*.*"):
             add_if_valid(img, "1000")
 
-    # 6. From dataset/raw/genuine_100_camera for authentic camera 100 notes
-    ref_100_cam = Path("dataset/raw/genuine_100_camera")
-    if ref_100_cam.exists():
-        for img in ref_100_cam.glob("*.jpg"):
-            add_if_valid(img, "100")
+    # 6. From dataset/raw/genuine_*_camera for authentic camera captures
+    for cam_d in ["10", "20", "50", "100", "200", "500"]:
+        cam_dir = Path(f"dataset/raw/genuine_{cam_d}_camera")
+        if cam_dir.exists():
+            for img in cam_dir.glob("*.jpg"):
+                add_if_valid(img, cam_d)
 
     # 7. From dataset/train/genuine for authentic camera 50 notes
     raw_genuine_train = Path("dataset/train/genuine")
