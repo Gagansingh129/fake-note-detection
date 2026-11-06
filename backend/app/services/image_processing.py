@@ -168,12 +168,7 @@ class ImageQualityChecker:
             meta["detection_method"] = "pre_scaled_sample"
             return image_bgr, (0, 0, w, h), False, meta
 
-        # Case 1: Already framed to typical banknote aspect ratio (1.50 to 2.95)
-        if 1.50 <= aspect_input <= 2.95:
-            meta["detection_method"] = "pre_aligned_frame"
-            return image_bgr, (0, 0, w, h), False, meta
-
-        # Case 2: Broad webcam scene or photo on desk - find bounding contour
+        # Find bounding contour / salient banknote region inside the camera scene
         blurred = cv2.GaussianBlur(gray, (7, 7), 0)
         kernel_rect = cv2.getStructuringElement(cv2.MORPH_RECT, (11, 11))
         grad = cv2.morphologyEx(blurred, cv2.MORPH_GRADIENT, kernel_rect)
@@ -267,6 +262,11 @@ class ImageQualityChecker:
                 meta["detection_method"] = "bounding_box"
                 meta["aspect_ratio"] = round(float(x1 - x0) / max(1, y1 - y0), 2)
                 return cropped, (x0, y0, x1 - x0, y1 - y0), True, meta
+
+        if 1.45 <= aspect_input <= 2.95:
+            meta["detection_method"] = "pre_aligned_frame"
+            meta["aspect_ratio"] = round(aspect_input, 2)
+            return image_bgr, (0, 0, w, h), False, meta
 
         return image_bgr, (0, 0, w, h), False, meta
 

@@ -33,6 +33,8 @@ USER_CAMERA_SOURCES = {
         "scratch/new_test_scans/*109*.jpg", # ₹10 new
     ],
     "20": [
+        "backend/uploads/upload_1793933504779_camera_c43ef6201ac94ac29df6ac93928f49ea.jpg", # latest ₹20 held in webcam
+        "scratch/actual_banknote_crop.jpg", # cropped ₹20 authentic note
         "scratch/latest_user_uploads/upload_1793594659634_camera_aa72aeba79394d60b86c340dacfde314.jpg", # ₹20 in hand
         "scratch/latest_user_uploads/upload_1793594823730_camera_e020663450f14151a878671b4280d694.jpg", # ₹20 on desk 1
         "scratch/latest_user_uploads/upload_1793594838881_camera_947926ecadd84f66bce0e876b39bf496.jpg", # ₹20 on desk 2
@@ -40,8 +42,8 @@ USER_CAMERA_SOURCES = {
         "scratch/new_test_scans/*113*.jpg", # ₹20 new desk
     ],
     "50": [
-        "dataset/raw/genuine/*50*.*",
         "scratch/repo6/CNN-based-classification-(PRIMARY)/dataset/comp_data/50_*/*.*",
+        "dataset/train/genuine/note_camera_real50_*.*",
     ],
     "100": [
         "scratch/latest_user_uploads/upload_1793594635771_camera_7521002a944548d09ab2b463e2ca4bbe.jpg", # ₹100 in hand

@@ -185,13 +185,15 @@ def predict_denomination(
 
     # 2. Physical RBI Color Space Analysis (HSV & BGR)
     h, w = img_bgr.shape[:2]
-    cx0, cx1 = int(w * 0.10), int(w * 0.90)
-    cy0, cy1 = int(h * 0.10), int(h * 0.90)
+    # Sample from central banknote zone (avoids user room walls, background, and frame borders)
+    cx0, cx1 = int(w * 0.22), int(w * 0.78)
+    cy0, cy1 = int(h * 0.15), int(h * 0.85)
     roi = img_bgr[cy0:cy1, cx0:cx1] if (cx1 > cx0 and cy1 > cy0) else img_bgr
     hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
     h_chan, s_chan, v_chan = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
     total_px = max(1, roi.shape[0] * roi.shape[1])
 
+    mean_hue = float(np.mean(h_chan))
     mean_sat = float(np.mean(s_chan))
     mean_val = float(np.mean(v_chan))
     mean_bgr = np.mean(roi, axis=(0, 1))
@@ -249,7 +251,15 @@ def predict_denomination(
     # Only correct when CNN confidence is ambiguous or when predicted class is "unknown"
     if confidence < 0.70 or predicted_class == "unknown":
         # 1a. Lavender (₹100)
-        if lavender_pct >= 0.20 and lavender_pct > chocolate_brown_pct and cyan_pct < 0.22 and magenta_pct < 0.15:
+        # Authentic ₹100 is lavender throughout; must have high lavender and low orange/yellow (< 0.20)
+        if (
+            lavender_pct >= 0.25 
+            and orange_yellow_pct < 0.20 
+            and lavender_pct > orange_yellow_pct * 1.5 
+            and lavender_pct > chocolate_brown_pct 
+            and cyan_pct < 0.22 
+            and magenta_pct < 0.15
+        ):
             predicted_class = "100"
             confidence = max(confidence, 0.92)
 
@@ -331,23 +341,58 @@ def predict_denomination(
 
     # Guard 4: Lavender ₹100 Definitive Physical Match
     # Lavender (Hue 105-140) is strictly unique to ₹100 banknotes in India.
-    # Other denominations (₹10, ₹20, ₹200, ₹500, ₹2000) never have >= 20% lavender without magenta.
-    if lavender_pct >= 0.20 and lavender_pct > chocolate_brown_pct and cyan_pct < 0.22 and magenta_pct < 0.20:
+    # Real ₹100 notes are lavender throughout; warm notes (₹20, ₹200, ₹10) have orange_yellow_pct >= 0.25
+    # and must NEVER trigger ₹100.
+    if (
+        lavender_pct >= 0.25 
+        and orange_yellow_pct < 0.20 
+        and lavender_pct > orange_yellow_pct * 1.5 
+        and lavender_pct > chocolate_brown_pct 
+        and cyan_pct < 0.22 
+        and magenta_pct < 0.20
+    ):
         predicted_class = "100"
         confidence = max(confidence, 0.95)
 
-    # Guard 5: ₹20 False-Positive Protection
-    # A ₹20 note in the Mahatma Gandhi New Series is Greenish Yellow.
-    # If predicted "20" but green_yellow is virtually absent (< 0.08) and chocolate_brown_pct >= 0.15,
-    # and lavender is low (so it is not a ₹100 note on a desk), it is ₹10.
-    if predicted_class == "20" and green_yellow_pct < 0.08 and chocolate_brown_pct >= 0.15 and lavender_pct < 0.12:
+    # Guard 4b: Anti-False ₹100 Protection (Corrects warm currency wrongly labeled as ₹100)
+    # If the CNN or background noise suggests "100", but orange/yellow is dominant (>= 0.30)
+    # and lavender is low (< 0.15), it is physically impossible to be ₹100.
+    if predicted_class == "100" and orange_yellow_pct >= 0.30 and lavender_pct < 0.15:
+        if chocolate_brown_pct >= 0.28 and chocolate_brown_pct >= orange_yellow_pct * 0.80:
+            predicted_class = "10"
+            confidence = 0.95
+        elif mean_hue >= 22.0 or green_yellow_pct >= 0.10 or (orange_yellow_pct >= 0.50 and chocolate_brown_pct < 0.35):
+            # Mahatma Gandhi New Series ₹20 is greenish-yellow / warm ochre (Hue 22-45)
+            predicted_class = "20"
+            confidence = 0.96
+        else:
+            predicted_class = "200"
+            confidence = 0.95
+
+    # Guard 5: ₹20 Greenish-Yellow Banknote Confirmation
+    # Mahatma Gandhi New Series ₹20 banknotes exhibit greenish-yellow / warm ochre (Hue 22-48).
+    # When orange_yellow / green_yellow is high, lavender/cyan/magenta are absent (< 0.12),
+    # and orange_yellow clearly dominates chocolate brown:
+    if (green_yellow_pct >= 0.15 or orange_yellow_pct >= 0.35) and lavender_pct < 0.12 and cyan_pct < 0.10 and magenta_pct < 0.10:
+        if chocolate_brown_pct < orange_yellow_pct * 0.70:
+            if mean_hue >= 22.0:
+                predicted_class = "20"
+                confidence = max(confidence, 0.96)
+            elif mean_hue < 21.0 and orange_yellow_pct >= 0.30:
+                predicted_class = "200"
+                confidence = max(confidence, 0.95)
+
+    # Guard 5b: ₹20 False-Positive Protection
+    # If predicted "20" but green_yellow is virtually absent (< 0.08) and chocolate_brown_pct >= 0.28
+    # and chocolate_brown clearly dominates:
+    if predicted_class == "20" and green_yellow_pct < 0.08 and chocolate_brown_pct >= 0.28 and chocolate_brown_pct >= orange_yellow_pct * 0.80 and lavender_pct < 0.12:
         predicted_class = "10"
         confidence = max(confidence, 0.94)
 
     # Guard 6: Direct Chocolate Brown ₹10 Physical Match
     # Chocolate brown (Hue 8-22) is uniquely characteristic of ₹10 banknotes.
-    # When chocolate brown is prominent and lavender is low, it is definitively ₹10.
-    if chocolate_brown_pct >= 0.25 and chocolate_brown_pct > lavender_pct * 2.0 and green_yellow_pct < 0.12 and cyan_pct < 0.10:
+    # When chocolate brown is prominent and dominates orange-yellow, it is definitively ₹10.
+    if chocolate_brown_pct >= 0.28 and chocolate_brown_pct >= orange_yellow_pct * 0.80 and chocolate_brown_pct > lavender_pct * 2.0 and green_yellow_pct < 0.12 and cyan_pct < 0.10:
         predicted_class = "10"
         confidence = max(confidence, 0.95)
 
