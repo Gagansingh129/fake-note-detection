@@ -1,5 +1,8 @@
 @echo off
 title NoteGuard AI - Local Server Launcher
+set "ROOT_DIR=%~dp0"
+cd /d "%ROOT_DIR%"
+
 echo ======================================================================
 echo           Starting NoteGuard AI Local Environment
 echo ======================================================================
@@ -22,16 +25,16 @@ if errorlevel 1 (
 )
 
 echo [*] Starting FastAPI Backend on http://127.0.0.1:8000 ...
-start "NoteGuard Backend (FastAPI)" cmd /k "cd backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload"
+start "NoteGuard Backend (FastAPI)" cmd /k "cd /d "%ROOT_DIR%backend" && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload"
 
-echo [*] Waiting 3 seconds for backend models to load...
-timeout /t 3 /nobreak >nul
+echo [*] Waiting 4 seconds for backend models to load...
+timeout /t 4 /nobreak >nul
 
 echo [*] Starting React + Vite Frontend on http://localhost:5173 ...
-start "NoteGuard Frontend (React + Vite)" cmd /k "cd frontend && npm run dev"
+start "NoteGuard Frontend (React + Vite)" cmd /k "cd /d "%ROOT_DIR%frontend" && npm run dev"
 
 echo [*] Opening NoteGuard AI in your web browser...
-timeout /t 2 /nobreak >nul
+timeout /t 3 /nobreak >nul
 start http://localhost:5173
 
 echo.
