@@ -33,6 +33,8 @@ USER_CAMERA_SOURCES = {
         "scratch/new_test_scans/*109*.jpg", # ₹10 new
     ],
     "20": [
+        "scratch/upload_1793940447693_camera_5ad05b848d1747fd833c01358413029c.jpg", # user real 20 note webcam
+        "scratch/upload_1793940522874_camera_16570e0687354465bbd28cfdde138c6d.jpg", # user real 20 note webcam 2
         "backend/uploads/upload_1793933504779_camera_c43ef6201ac94ac29df6ac93928f49ea.jpg", # latest ₹20 held in webcam
         "scratch/actual_banknote_crop.jpg", # cropped ₹20 authentic note
         "scratch/latest_user_uploads/upload_1793594659634_camera_aa72aeba79394d60b86c340dacfde314.jpg", # ₹20 in hand
@@ -46,6 +48,8 @@ USER_CAMERA_SOURCES = {
         "dataset/train/genuine/note_camera_real50_*.*",
     ],
     "100": [
+        "scratch/upload_1793940479872_camera_7485fe882e3247268dbd139ce49104e7.jpg", # user real 100 note webcam
+        "scratch/inspect_user_cam_100_aug_006.jpg", # user real 100 note
         "scratch/latest_user_uploads/upload_1793594635771_camera_7521002a944548d09ab2b463e2ca4bbe.jpg", # ₹100 in hand
         "scratch/latest_user_uploads/upload_1793594863466_camera_839842c48bd54c48b0fa5c9f0cb09f15.jpg", # ₹100 on desk
         "scratch/new_test_scans/*105*.jpg", # ₹100 in hand
