@@ -34,12 +34,25 @@ def get_training_augmentation_pipeline() -> tf.keras.Sequential:
 
 
 def decode_image_bytes(image_bytes: bytes) -> np.ndarray:
-    """Decodes raw uploaded image byte stream into an OpenCV BGR numpy array."""
-    nparr = np.frombuffer(image_bytes, np.uint8)
-    image_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    if image_bgr is None:
-        raise ValueError("Could not decode image from provided byte stream.")
-    return image_bgr
+    """
+    Decodes raw uploaded image byte stream into an OpenCV BGR numpy array.
+    Automatically respects smartphone camera EXIF orientation tags (iOS, Samsung, Android).
+    """
+    try:
+        from PIL import Image, ImageOps
+        import io
+        pil_img = Image.open(io.BytesIO(image_bytes))
+        pil_img = ImageOps.exif_transpose(pil_img)
+        if pil_img.mode != "RGB":
+            pil_img = pil_img.convert("RGB")
+        rgb_arr = np.array(pil_img)
+        return cv2.cvtColor(rgb_arr, cv2.COLOR_RGB2BGR)
+    except Exception:
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        image_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if image_bgr is None:
+            raise ValueError("Could not decode image from provided byte stream.")
+        return image_bgr
 
 
 def preprocess_for_inference(

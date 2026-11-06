@@ -153,6 +153,22 @@ class ImageQualityChecker:
 
         aspect_input = float(w) / h if h > 0 else 1.0
 
+        # Multi-Device Orientation Normalization:
+        # If an already-framed banknote image is oriented vertically (e.g. portrait photo on smartphone),
+        # rotate 90 degrees clockwise to align with horizontal currency standards
+        if 0.31 <= aspect_input <= 0.74:
+            image_bgr = cv2.rotate(image_bgr, cv2.ROTATE_90_CLOCKWISE)
+            h, w = image_bgr.shape[:2]
+            aspect_input = float(w) / h
+            meta["auto_rotated"] = True
+
+        # Standardize ultra-high-resolution smartphone uploads (e.g. 48MP/12MP cameras)
+        if max(w, h) > 1920:
+            scale = 1600.0 / max(w, h)
+            image_bgr = cv2.resize(image_bgr, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+            h, w = image_bgr.shape[:2]
+            aspect_input = float(w) / h
+
         # Check for texture / edge variation to reject completely featureless / blank images
         gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
         edge_density = float(np.mean(cv2.Canny(gray, 50, 150)))
@@ -201,6 +217,14 @@ class ImageQualityChecker:
             score = area * max(0.1, centrality)
 
             if 1.35 <= aspect <= 3.2:
+                if score > max_score:
+                    max_score = score
+                    best_box = (x, y, cw, ch)
+                    best_contour = c
+                    if len(approx) == 4:
+                        best_pts = approx.reshape(4, 2)
+            elif 0.31 <= aspect <= 0.74:
+                # Vertical banknote held in portrait orientation
                 if score > max_score:
                     max_score = score
                     best_box = (x, y, cw, ch)
@@ -259,8 +283,11 @@ class ImageQualityChecker:
                 x1 = min(w, x + cw + pad_x)
                 y1 = min(h, y + ch + pad_y)
                 cropped = image_bgr[y0:y1, x0:x1]
+                # If vertical banknote, auto-orient to standard horizontal format
+                if cropped.shape[0] > cropped.shape[1] * 1.25:
+                    cropped = cv2.rotate(cropped, cv2.ROTATE_90_CLOCKWISE)
                 meta["detection_method"] = "bounding_box"
-                meta["aspect_ratio"] = round(float(x1 - x0) / max(1, y1 - y0), 2)
+                meta["aspect_ratio"] = round(float(cropped.shape[1]) / max(1, cropped.shape[0]), 2)
                 return cropped, (x0, y0, x1 - x0, y1 - y0), True, meta
 
         if 1.45 <= aspect_input <= 2.95:

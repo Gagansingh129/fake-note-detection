@@ -19,6 +19,10 @@ export default function CameraCapture({ onAnalyze, isLoading }) {
     setCameraError(null);
     try {
       if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        if (window.location.protocol === 'http:' && (window.location.hostname === '15.206.212.168' || window.location.hostname.includes('sslip.io'))) {
+          window.location.href = 'https://15-206-212-168.sslip.io' + window.location.pathname + window.location.search;
+          return;
+        }
         throw new Error('INSECURE_CONTEXT');
       }
 
