@@ -331,8 +331,8 @@ def predict_denomination(
 
     # Guard 4: Lavender ₹100 Definitive Physical Match
     # Lavender (Hue 105-140) is strictly unique to ₹100 banknotes in India.
-    # Other denominations (₹10, ₹20, ₹200, ₹500) never have >= 20% lavender.
-    if lavender_pct >= 0.20 and lavender_pct > chocolate_brown_pct and cyan_pct < 0.22:
+    # Other denominations (₹10, ₹20, ₹200, ₹500, ₹2000) never have >= 20% lavender without magenta.
+    if lavender_pct >= 0.20 and lavender_pct > chocolate_brown_pct and cyan_pct < 0.22 and magenta_pct < 0.20:
         predicted_class = "100"
         confidence = max(confidence, 0.95)
 
@@ -350,6 +350,12 @@ def predict_denomination(
     if chocolate_brown_pct >= 0.25 and chocolate_brown_pct > lavender_pct * 2.0 and green_yellow_pct < 0.12 and cyan_pct < 0.10:
         predicted_class = "10"
         confidence = max(confidence, 0.95)
+
+    # Guard 7: Magenta ₹2000 Definitive Physical Match
+    # Magenta (Hue 145-178, Sat >= 25) is uniquely characteristic of ₹2000 banknotes in India.
+    if magenta_pct >= 0.25 and magenta_pct > lavender_pct:
+        predicted_class = "2000"
+        confidence = max(confidence, 0.96)
 
     # Reject low-confidence predictions
     if confidence < 0.35 and predicted_class not in CIRCULATION_METADATA:
