@@ -5,7 +5,7 @@ Provides user registration, login, demo access, session verification, and logout
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Header, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 class RegisterRequest(BaseModel):
     username: str
-    email: EmailStr
+    email: str
     password: str
     full_name: Optional[str] = None
 
