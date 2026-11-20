@@ -342,9 +342,10 @@ def predict_denomination(
     # Guard 4: Lavender ₹100 Definitive Physical Match
     # Lavender (Hue 105-140) is strictly unique to ₹100 banknotes in India.
     # Real ₹100 notes are lavender throughout; warm notes (₹20, ₹200, ₹10) have orange_yellow_pct >= 0.25
-    # and must NEVER trigger ₹100.
+    # and must NEVER trigger ₹100. Only apply when CNN confidence is low (< 0.70) or predicted_class is "100" / "unknown".
     if (
-        lavender_pct >= 0.22 
+        (confidence < 0.70 or predicted_class in ["100", "unknown"])
+        and lavender_pct >= 0.22 
         and orange_yellow_pct < 0.20 
         and lavender_pct > orange_yellow_pct * 1.5 
         and lavender_pct > chocolate_brown_pct 
@@ -527,7 +528,25 @@ def run_prediction_pipeline(
 
     else:
         # Authenticity inference
-        prob_genuine = float(model_manager.authenticity_model.predict(tensor_input, verbose=0)[0, 0])
+        raw_prob_genuine = float(model_manager.authenticity_model.predict(tensor_input, verbose=0)[0, 0])
+        
+        # Physical computer vision security evidence
+        cv_score = float(sec_features.get("cv_support_score", 0.50))
+        is_valid_denom = (denomination_val in [5, 10, 20, 50, 100, 200, 500, 2000]) and (denom_confidence >= 0.65)
+        
+        bogus_1000 = sec_features.get("bogus_denomination_1000", {}).get("detected") or (denomination_val == 1000)
+        dummy_markers = sec_features.get("dummy_currency_markers", {})
+        has_dummy = dummy_markers.get("detected", False)
+
+        # Multi-modal evidence fusion:
+        # If the banknote has confirmed authentic denomination patterns and physical CV features
+        # (intaglio print texture, security thread, portrait contrast) without dummy markers or bogus denominations,
+        # blend deep learning features with physical CV evidence to ensure robust lighting/angle invariance.
+        if is_valid_denom and not has_dummy and not bogus_1000 and cv_score >= 0.65:
+            prob_genuine = 0.50 * raw_prob_genuine + 0.50 * cv_score
+        else:
+            prob_genuine = raw_prob_genuine
+
         genuine_score = round(prob_genuine, 4)
         fake_score = round(1.0 - prob_genuine, 4)
 
@@ -555,7 +574,7 @@ def run_prediction_pipeline(
             primary_confidence = fake_score
             warning = "Detected toy/dummy banknote characteristics (e.g. Coupon Label / Non-standard thread / Full of Fun text). This is not valid legal tender."
 
-        elif prob_genuine >= 0.52 or (prob_genuine >= 0.42 and not dummy_markers.get("detected") and quality_report.get("status") in ["Good", "Acceptable"]):
+        elif prob_genuine >= 0.50 or (prob_genuine >= 0.38 and not dummy_markers.get("detected") and quality_report.get("status") in ["Good", "Acceptable"]):
             predicted_class = "genuine"
             decision_status = "likely_genuine"
             authenticity_label = "Likely Genuine"
@@ -564,7 +583,7 @@ def run_prediction_pipeline(
             primary_confidence = authenticity_confidence
             warning = "Screening indicates high visual alignment with authentic currency patterns. Verify physical security features for critical transactions."
 
-        elif prob_genuine <= 0.35:
+        elif prob_genuine <= 0.22 or dummy_markers.get("detected"):
             predicted_class = "fake"
             decision_status = "suspected_fake"
             authenticity_label = "Suspected Fake"

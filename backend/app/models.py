@@ -9,6 +9,27 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, Text, JSON
 from app.database import Base
 
 
+class User(Base):
+    """User account entity for login and authentication."""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    username = Column(String(50), unique=True, index=True, nullable=False)
+    email = Column(String(100), unique=True, index=True, nullable=False)
+    full_name = Column(String(100), nullable=True)
+    password_hash = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "username": self.username,
+            "email": self.email,
+            "full_name": self.full_name or self.username,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+
 class PredictionRecord(Base):
     """Stores inference metadata, predictions, quality diagnostics, and image references."""
     __tablename__ = "predictions"

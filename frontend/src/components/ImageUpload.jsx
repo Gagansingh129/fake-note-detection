@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, Image as ImageIcon, X, AlertTriangle, ArrowRight, Loader2 } from 'lucide-react';
+import { UploadCloud, Image as ImageIcon, X, AlertTriangle, ArrowRight, Loader2, Info } from 'lucide-react';
 
 export default function ImageUpload({ onAnalyze, isLoading }) {
   const [dragActive, setDragActive] = useState(false);
@@ -64,7 +64,7 @@ export default function ImageUpload({ onAnalyze, isLoading }) {
   };
 
   return (
-    <div className="glass-card" style={{ maxWidth: '640px', margin: '0 auto' }}>
+    <div style={{ width: '100%' }}>
       <input
         ref={inputRef}
         type="file"
@@ -74,92 +74,190 @@ export default function ImageUpload({ onAnalyze, isLoading }) {
       />
 
       {!previewUrl ? (
-        <div
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-          onClick={() => inputRef.current?.click()}
-          style={{
-            border: `2px dashed ${dragActive ? 'var(--accent-blue)' : 'var(--border-color)'}`,
-            borderRadius: '0.75rem',
-            padding: '3rem 1.5rem',
-            textAlign: 'center',
-            cursor: 'pointer',
-            background: dragActive ? 'rgba(59, 130, 246, 0.05)' : 'rgba(0, 0, 0, 0.2)',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          <UploadCloud size={44} color="#60a5fa" style={{ margin: '0 auto 1rem' }} />
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Upload Currency Note Image</h3>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.4rem' }}>
-            Drag and drop your note photo here, or click to browse
-          </p>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.75rem' }}>
-            Supports JPG, PNG, WEBP (Up to 10 MB)
-          </p>
+        <div>
+          <div
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+            onClick={() => inputRef.current?.click()}
+            style={{
+              border: `2px dashed ${dragActive ? '#2563eb' : '#cbd5e1'}`,
+              borderRadius: '1.25rem',
+              padding: '4.5rem 2rem',
+              textAlign: 'center',
+              cursor: 'pointer',
+              background: dragActive ? '#f0fdf4' : '#ffffff',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {/* Cloud Icon in Blue Circle */}
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '9999px',
+                background: '#eff6ff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 1.25rem',
+              }}
+            >
+              <UploadCloud size={32} color="#2563eb" />
+            </div>
+
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.4rem' }}>
+              Upload currency note image
+            </h3>
+            <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+              Drag and drop your note photo here, or click to browse
+            </p>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                inputRef.current?.click();
+              }}
+              style={{
+                background: '#0f172a',
+                color: '#ffffff',
+                border: 'none',
+                padding: '0.7rem 1.6rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = '#1e293b')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = '#0f172a')}
+            >
+              Choose image
+            </button>
+
+            <p style={{ color: '#94a3b8', fontSize: '0.78rem', marginTop: '1.25rem' }}>
+              JPG, PNG or WEBP · up to 10 MB
+            </p>
+          </div>
+
+          {/* Info note below dropzone */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              color: '#64748b',
+              fontSize: '0.84rem',
+              marginTop: '1rem',
+            }}
+          >
+            <Info size={16} color="#3b82f6" />
+            <span>Crop closely around the note's edges for the most reliable result.</span>
+          </div>
         </div>
       ) : (
-        <div>
-          <div style={{ position: 'relative', borderRadius: '0.75rem', overflow: 'hidden', background: '#000' }}>
-            <img
-              src={previewUrl}
-              alt="Currency note preview"
-              style={{ width: '100%', maxHeight: '340px', objectFit: 'contain', display: 'block' }}
-            />
+        /* Preview Card */
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: '1.25rem',
+            border: '1px solid #e2e8f0',
+            padding: '1.5rem',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <ImageIcon size={18} color="#2563eb" />
+              <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a' }}>
+                {selectedFile?.name}
+              </span>
+              <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                ({(selectedFile?.size / (1024 * 1024)).toFixed(2)} MB)
+              </span>
+            </div>
+
             <button
               onClick={clearSelection}
               disabled={isLoading}
               style={{
-                position: 'absolute',
-                top: '0.75rem',
-                right: '0.75rem',
-                background: 'rgba(0, 0, 0, 0.65)',
-                color: '#fff',
+                background: '#f1f5f9',
                 border: 'none',
                 borderRadius: '9999px',
-                width: '32px',
-                height: '32px',
+                width: '30px',
+                height: '30px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
+                color: '#64748b',
               }}
             >
-              <X size={18} />
+              <X size={16} />
             </button>
           </div>
 
           <div
             style={{
+              width: '100%',
+              height: '320px',
+              borderRadius: '0.75rem',
+              overflow: 'hidden',
+              background: '#0f172a',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              marginTop: '1rem',
-              fontSize: '0.85rem',
-              color: 'var(--text-secondary)',
+              justifyContent: 'center',
+              marginBottom: '1.25rem',
+              border: '1px solid #cbd5e1',
             }}
           >
-            <span>{selectedFile?.name}</span>
-            <span>{(selectedFile?.size / (1024 * 1024)).toFixed(2)} MB</span>
+            <img
+              src={previewUrl}
+              alt="Banknote Preview"
+              style={{
+                maxWidth: '100%',
+                maxHeight: '100%',
+                objectFit: 'contain',
+              }}
+            />
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
-            <button className="btn btn-secondary" onClick={clearSelection} disabled={isLoading} style={{ flex: 1 }}>
-              Choose Different
-            </button>
-            <button className="btn btn-primary" onClick={handleSubmit} disabled={isLoading} style={{ flex: 2 }}>
-              {isLoading ? (
-                <>
-                  <Loader2 size={18} className="pulse" /> Screening Note...
-                </>
-              ) : (
-                <>
-                  Analyze Note Authenticity <ArrowRight size={18} />
-                </>
-              )}
-            </button>
-          </div>
+          <button
+            onClick={handleSubmit}
+            disabled={isLoading}
+            style={{
+              width: '100%',
+              padding: '0.85rem',
+              borderRadius: '0.625rem',
+              background: '#0f172a',
+              color: '#ffffff',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '0.95rem',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              boxShadow: '0 4px 6px -1px rgba(15, 23, 42, 0.2)',
+            }}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 size={18} className="spin" />
+                <span>Screening Banknote...</span>
+              </>
+            ) : (
+              <>
+                <span>Run NoteGuard AI Screening</span>
+                <ArrowRight size={18} />
+              </>
+            )}
+          </button>
         </div>
       )}
 
@@ -169,15 +267,17 @@ export default function ImageUpload({ onAnalyze, isLoading }) {
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            marginTop: '1rem',
-            padding: '0.75rem',
+            padding: '0.75rem 1rem',
             borderRadius: '0.5rem',
-            background: 'rgba(239, 68, 68, 0.1)',
-            color: '#f87171',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            color: '#dc2626',
             fontSize: '0.85rem',
+            marginTop: '1rem',
           }}
         >
-          <AlertTriangle size={16} /> {error}
+          <AlertTriangle size={18} />
+          <span>{error}</span>
         </div>
       )}
     </div>

@@ -162,19 +162,28 @@ def analyze_banknote_security_features(
     portrait_contrast_pass = portrait_contrast >= 25.0
 
     # 5. Dummy / Toy Note Anomaly Screening (Full of Fun, Children Bank, Coupon notes)
+    # Note: Indian skin tones and natural ₹10/₹20/₹200 ochre borders have Hue 8-35.
+    # A true coupon banner is a solid, high-saturation, low-texture artificial graphic.
     right_edge_roi = image_bgr[:, int(w * 0.86):]
-    hsv_right = cv2.cvtColor(right_edge_roi, cv2.COLOR_BGR2HSV)
-    coupon_color_mask = cv2.inRange(hsv_right, np.array([8, 100, 100]), np.array([35, 255, 255]))
-    coupon_ratio = float(np.mean(coupon_color_mask > 0))
-    has_toy_coupon_banner = coupon_ratio > 0.14
+    has_toy_coupon_banner = False
+    if right_edge_roi.size > 0 and denom_clean not in ["10", "20", "200"]:
+        hsv_right = cv2.cvtColor(right_edge_roi, cv2.COLOR_BGR2HSV)
+        # Toy coupon markers have unnatural neon saturation (> 210) and bright value (> 200)
+        coupon_color_mask = cv2.inRange(hsv_right, np.array([12, 210, 200]), np.array([30, 255, 255]))
+        coupon_ratio = float(np.mean(coupon_color_mask > 0))
+        # Check for unnatural lack of print texture (solid sticker/coupon block)
+        gray_right = cv2.cvtColor(right_edge_roi, cv2.COLOR_BGR2GRAY)
+        right_var = float(cv2.Laplacian(gray_right, cv2.CV_64F).var())
+        has_toy_coupon_banner = (coupon_ratio > 0.28) and (right_var < 20.0)
 
     thread_bgr = image_bgr[:, x_start:x_end]
     red_diff = thread_bgr[:, :, 2].astype(float) - thread_bgr[:, :, 1].astype(float)
-    has_red_fake_thread = float(np.mean(red_diff)) > 42.0
+    has_red_fake_thread = float(np.mean(red_diff)) > 55.0
 
-    mean_b, mean_g, mean_r = np.mean(image_bgr, axis=(0, 1))
+    # Color anomaly: only trigger if denomination colors are drastically mismatched
     color_anomaly = False
-    if denom_clean == "10" and (mean_b > 130 and mean_g > 145 and mean_r > 170):
+    mean_b, mean_g, mean_r = np.mean(image_bgr, axis=(0, 1))
+    if denom_clean == "10" and (mean_b > 190 and mean_g > 190):  # washed out pure white mockup
         color_anomaly = True
 
     dummy_note_flag = has_toy_coupon_banner or (has_red_fake_thread and color_anomaly)

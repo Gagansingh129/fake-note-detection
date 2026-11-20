@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.database import init_db
 from app.services.prediction_service import model_manager
-from app.routes import prediction, camera, history
+from app.routes import prediction, camera, history, auth
 
 
 @asynccontextmanager
@@ -52,6 +52,7 @@ app.mount("/uploads", StaticFiles(directory=str(settings.STATIC_UPLOADS_DIR)), n
 app.mount("/results", StaticFiles(directory=str(settings.STATIC_RESULTS_DIR)), name="results")
 
 # Include Routers
+app.include_router(auth.router)
 app.include_router(prediction.router)
 app.include_router(camera.router)
 app.include_router(history.router)
