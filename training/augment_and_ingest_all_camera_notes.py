@@ -69,14 +69,7 @@ USER_CAMERA_SOURCES = {
         "scratch/new_test_scans/*112*.jpg", # ₹100 on desk
         "scratch/user_scans/*.jpg",
         "dataset/raw/genuine_100_camera/*.jpg",
-        "backend/uploads/*camera*f43a44aa*.jpg",
-        "backend/uploads/*camera*3834a544*.jpg",
-        "backend/uploads/*camera*baa9fab9*.jpg",
-        "backend/uploads/*camera*8b88ef14*.jpg",
-        "backend/uploads/*camera*5e662394*.jpg",
-        "backend/uploads/*camera*53ba42c3*.jpg",
-        "backend/uploads/*camera*264a6202*.jpg",
-        "backend/uploads/*camera*2549faaf*.jpg",
+        "dataset/raw/genuine/*100*.*"
     ],
     "200": [
         "scratch/latest_user_uploads/upload_1793594886292_camera_eaeb61ede5e140fbb4acf6926f9b4cb7.jpg", # ₹200 on desk
