@@ -133,35 +133,40 @@ class ImageQualityChecker:
         Locates a currency banknote held in front of a camera/webcam scene.
         Uses gradient projections to detect the sharp top/bottom/left/right boundaries
         of the note, separating it from the user's clothing, face, and background.
+        Strictly enforces Mahatma Gandhi New Series aspect ratio (1.90 - 2.45) and
+        micro-print character stroke density to reject human faces and empty rooms.
         """
         h, w = image_bgr.shape[:2]
         gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
 
         # 1. Edge-based horizontal projection to find top & bottom edges of the note
         sob_y = np.abs(cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3))
-        # Focus on middle 70% of X to avoid fingers/edges
-        mid_sob_y = sob_y[:, int(w * 0.15):int(w * 0.85)]
+        # Focus on middle 60% of X to avoid fingers/edges
+        mid_sob_y = sob_y[:, int(w * 0.20):int(w * 0.80)]
         row_grad = np.mean(mid_sob_y, axis=1)
 
         kernel = np.ones(9) / 9.0
         smooth_grad = np.convolve(row_grad, kernel, mode='same')
 
-        # Search for top edge in range [int(h*0.10) : int(h*0.55)]
-        y_min_search = int(h * 0.10)
+        # Search for top edge in range [int(h*0.12) : int(h*0.55)]
+        y_min_search = int(h * 0.12)
         y_max_search = int(h * 0.55)
         top_y = y_min_search + int(np.argmax(smooth_grad[y_min_search:y_max_search]))
 
-        # Search for bottom edge in range [top_y + int(h*0.25) : min(h - 20, top_y + int(h*0.65))]
-        bot_min = top_y + int(h * 0.25)
+        # Search for bottom edge in range [top_y + int(h*0.22) : min(h - 20, top_y + int(h*0.65))]
+        bot_min = top_y + int(h * 0.22)
         bot_max = min(h - 20, top_y + int(h * 0.65))
-        if bot_max > bot_min:
-            bot_y = bot_min + int(np.argmax(smooth_grad[bot_min:bot_max]))
-        else:
-            bot_y = int(h * 0.80)
+        if bot_max <= bot_min:
+            return (0, 0, 0, 0), 0.0, False
+        bot_y = bot_min + int(np.argmax(smooth_grad[bot_min:bot_max]))
 
         note_h = bot_y - top_y
+        if note_h < int(h * 0.22) or note_h > int(h * 0.70):
+            return (0, 0, 0, 0), 0.0, False
+
         band_gray = gray[top_y:bot_y, :]
         std_detail = float(np.std(band_gray))
+        mean_val = float(np.mean(band_gray))
 
         # 2. Vertical edges in the note horizontal band
         sob_x = np.abs(cv2.Sobel(band_gray, cv2.CV_64F, 1, 0, ksize=3))
@@ -170,18 +175,53 @@ class ImageQualityChecker:
 
         # Left edge search [int(w*0.05) : int(w*0.35)]
         left_x = int(w * 0.05) + int(np.argmax(smooth_col[int(w * 0.05):int(w * 0.35)]))
-        # Right edge search [int(w*0.65) : int(w*0.95)]
-        right_x = int(w * 0.65) + int(np.argmax(smooth_col[int(w * 0.65):int(w * 0.95)]))
-        note_w = right_x - left_x
 
+        # Search for right edge strictly within genuine Indian banknote aspect ratio [1.90 : 2.45]
+        min_rx = min(w - 15, left_x + int(note_h * 1.90))
+        max_rx = min(w - 10, left_x + int(note_h * 2.45))
+        if max_rx <= min_rx:
+            return (0, 0, 0, 0), 0.0, False
+
+        right_x = min_rx + int(np.argmax(smooth_col[min_rx:max_rx]))
+        note_w = right_x - left_x
         aspect = float(note_w) / max(1, note_h)
+
+        # Edge coverage checks along the candidate note top & bottom lines
+        edge_strip_top = sob_y[max(0, top_y-2):min(h, top_y+3), left_x:right_x]
+        edge_strip_bot = sob_y[max(0, bot_y-2):min(h, bot_y+3), left_x:right_x]
+        top_cov = float(np.mean(np.max(edge_strip_top, axis=0) > 18.0))
+        bot_cov = float(np.mean(np.max(edge_strip_bot, axis=0) > 18.0))
 
         top_peak_val = float(smooth_grad[top_y])
         bot_peak_val = float(smooth_grad[bot_y])
         mean_grad = float(np.mean(smooth_grad))
 
-        has_strong_edges = (top_peak_val > mean_grad * 1.4) and (bot_peak_val > mean_grad * 1.25)
-        is_valid_note = bool((1.40 <= aspect <= 3.10) and (note_h >= h * 0.20) and has_strong_edges and (std_detail >= 25.0))
+        has_strong_edges = (top_peak_val > mean_grad * 1.4) and (bot_peak_val > mean_grad * 1.3)
+        has_edge_coverage = (top_cov >= 0.50) and (bot_cov >= 0.50)
+
+        # Print character stroke density check (rules out human faces, walls, clothing)
+        crop_gray = gray[top_y:bot_y, left_x:right_x]
+        thresh = cv2.adaptiveThreshold(crop_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 6)
+        _, _, stats, _ = cv2.connectedComponentsWithStats(thresh)
+        char_candidates = 0
+        for stat in stats[1:]:
+            area = stat[cv2.CC_STAT_AREA]
+            cw = stat[cv2.CC_STAT_WIDTH]
+            ch = stat[cv2.CC_STAT_HEIGHT]
+            aspect_c = float(cw) / max(1, ch)
+            if 15 <= area <= 600 and 0.2 <= aspect_c <= 3.5 and cw < note_w * 0.15 and ch < note_h * 0.25:
+                char_candidates += 1
+
+        has_print_characters = char_candidates >= 130
+
+        is_valid_note = bool(
+            (1.90 <= aspect <= 2.45) and
+            has_strong_edges and
+            has_edge_coverage and
+            has_print_characters and
+            (std_detail >= 30.0) and
+            (mean_val >= 80.0)
+        )
 
         return (top_y, bot_y, left_x, right_x), aspect, is_valid_note
 
@@ -358,16 +398,25 @@ class ImageQualityChecker:
                 x1 = min(w, x + cw + pad_x)
                 y1 = min(h, y + ch + pad_y)
                 cropped = image_bgr[y0:y1, x0:x1]
-                # Validate that the crop has banknote texture (not plain clothing or wall)
-                gray_crop = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
-                sob_x_val = float(np.mean(np.abs(cv2.Sobel(gray_crop, cv2.CV_64F, 1, 0, ksize=3))))
-                if sob_x_val >= 14.0:
-                    if cropped.shape[0] > cropped.shape[1] * 1.25:
-                        cropped = cv2.rotate(cropped, cv2.ROTATE_90_CLOCKWISE)
-                    meta["detection_method"] = "bounding_box"
-                    meta["aspect_ratio"] = round(float(cropped.shape[1]) / max(1, cropped.shape[0]), 2)
-                    meta["is_banknote_detected"] = True
-                    return cropped, (x0, y0, x1 - x0, y1 - y0), True, meta
+                crop_aspect = float(cropped.shape[1]) / max(1, cropped.shape[0])
+                if cropped.shape[0] > cropped.shape[1] * 1.25:
+                    cropped = cv2.rotate(cropped, cv2.ROTATE_90_CLOCKWISE)
+                    crop_aspect = float(cropped.shape[1]) / max(1, cropped.shape[0])
+
+                # Validate genuine Indian banknote aspect ratio (1.90 - 2.50)
+                if 1.90 <= crop_aspect <= 2.50:
+                    gray_crop = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
+                    sob_x_val = float(np.mean(np.abs(cv2.Sobel(gray_crop, cv2.CV_64F, 1, 0, ksize=3))))
+                    # Validate print character stroke density (rules out people, furniture, clothing)
+                    thresh = cv2.adaptiveThreshold(gray_crop, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 6)
+                    _, _, stats, _ = cv2.connectedComponentsWithStats(thresh)
+                    char_count = sum(1 for s in stats[1:] if 15 <= s[cv2.CC_STAT_AREA] <= 600)
+
+                    if char_count >= 130 and sob_x_val >= 14.0:
+                        meta["detection_method"] = "bounding_box"
+                        meta["aspect_ratio"] = round(crop_aspect, 2)
+                        meta["is_banknote_detected"] = True
+                        return cropped, (x0, y0, x1 - x0, y1 - y0), True, meta
 
         # 3. Only accept as pre-aligned if image is a compact crop of a note (w <= 800 and h <= 500)
         # Large camera frames (e.g. 1280x720, 1920x1080) without a located note must not pass

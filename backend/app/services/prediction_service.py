@@ -550,19 +550,16 @@ def run_prediction_pipeline(
         has_dummy = dummy_markers.get("detected", False)
 
         # Multi-modal evidence fusion:
-        # If the banknote has confirmed authentic denomination patterns and physical CV features
-        # (intaglio print texture, security thread, portrait contrast) without dummy markers or bogus denominations,
-        # blend deep learning features with physical CV evidence to ensure robust lighting/angle invariance.
-        if is_valid_denom and not has_dummy and not bogus_1000 and cv_score >= 0.65:
-            prob_genuine = 0.50 * raw_prob_genuine + 0.50 * cv_score
+        # Deep learning authenticity representation is primary.
+        # Only corroborate with cv_score when the deep learning model ALREADY indicates genuine (raw_prob_genuine >= 0.50).
+        # NEVER inflate a low-probability / fake note with cv_score!
+        if is_valid_denom and not has_dummy and not bogus_1000 and raw_prob_genuine >= 0.50 and cv_score >= 0.65:
+            prob_genuine = 0.60 * raw_prob_genuine + 0.40 * cv_score
         else:
             prob_genuine = raw_prob_genuine
 
         genuine_score = round(prob_genuine, 4)
         fake_score = round(1.0 - prob_genuine, 4)
-
-        bogus_1000 = sec_features.get("bogus_denomination_1000", {}).get("detected") or (denomination_val == 1000)
-        dummy_markers = sec_features.get("dummy_currency_markers", {})
 
         if bogus_1000:
             predicted_class = "fake"
@@ -575,39 +572,33 @@ def run_prediction_pipeline(
             primary_confidence = fake_score
             warning = "The ₹1000 denomination does not exist in the Mahatma Gandhi New Series (demonetized in 2016 and never reissued in new format). This is an unauthorized reproduction and is not legal tender."
 
-        elif dummy_markers.get("detected") and prob_genuine < 0.80:
+        elif has_dummy or prob_genuine <= 0.40:
             predicted_class = "fake"
             decision_status = "suspected_fake"
             authenticity_label = "Suspected Fake"
-            status_label = "Toy / Dummy Currency Markers Detected"
-            fake_score = max(fake_score, 0.96)
+            status_label = "Toy / Dummy Currency Markers Detected" if has_dummy else "Suspected Counterfeit / Fake Banknote"
+            fake_score = max(fake_score, 0.88)
             authenticity_confidence = fake_score
             primary_confidence = fake_score
-            warning = "Detected toy/dummy banknote characteristics (e.g. Coupon Label / Non-standard thread / Full of Fun text). This is not valid legal tender."
+            warning = "Screening detected patterns inconsistent with genuine currency (security thread / micro-lettering / print relief anomaly). Inspect physical note closely."
 
-        elif prob_genuine >= 0.50 or (prob_genuine >= 0.38 and not dummy_markers.get("detected") and quality_report.get("status") in ["Good", "Acceptable"]):
+        elif prob_genuine >= 0.60:
             predicted_class = "genuine"
             decision_status = "likely_genuine"
             authenticity_label = "Likely Genuine"
             status_label = "Visual Alignment Consistent with Genuine Banknote"
-            authenticity_confidence = max(genuine_score, 0.92 if prob_genuine >= 0.50 else 0.85)
+            authenticity_confidence = max(genuine_score, 0.90)
             primary_confidence = authenticity_confidence
             warning = "Screening indicates high visual alignment with authentic currency patterns. Verify physical security features for critical transactions."
-
-        elif prob_genuine <= 0.22 or dummy_markers.get("detected"):
-            predicted_class = "fake"
-            decision_status = "suspected_fake"
-            authenticity_label = "Suspected Fake"
-            status_label = "Visual Discrepancies Detected — Suspected Fake"
-            authenticity_confidence = fake_score
-            primary_confidence = fake_score
-            warning = "Screening detected security anomalies or pattern deviations. Verify with authorized banking procedures."
 
         else:
             predicted_class = "uncertain"
             decision_status = "uncertain"
             authenticity_label = "Uncertain / Unable to Verify"
-            status_label = "Inconclusive Visual Pattern"
+            status_label = "Screening Inconclusive — Physical Verification Required"
+            authenticity_confidence = 0.55
+            primary_confidence = 0.55
+            warning = "Surface screening inconclusive. Please inspect watermark against light and check colour-shifting ink."
             authenticity_confidence = round(max(genuine_score, fake_score), 4)
             primary_confidence = authenticity_confidence
             warning = "Screening confidence is borderline due to angle, lighting, or partial occlusion. Align the note flat inside the guide frame under direct lighting."
