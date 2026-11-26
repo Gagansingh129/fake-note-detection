@@ -42,9 +42,124 @@ export default function PredictionResult({ result, onReset }) {
     model_version,
   } = result;
 
-  const isGenuine = decision_status === 'likely_genuine' || (authenticity && authenticity.toLowerCase().includes('genuine'));
-  const isFake = decision_status === 'suspected_fake' || (authenticity && authenticity.toLowerCase().includes('fake'));
-  const isUncertain = !isGenuine && !isFake;
+  const isInvalid = decision_status === 'invalid_image' || (status_label && status_label.toLowerCase().includes('no valid currency'));
+  const isGenuine = !isInvalid && (decision_status === 'likely_genuine' || (authenticity && authenticity.toLowerCase().includes('genuine')));
+  const isFake = !isInvalid && (decision_status === 'suspected_fake' || (authenticity && authenticity.toLowerCase().includes('fake')));
+  const isUncertain = !isInvalid && !isGenuine && !isFake;
+
+  // Dedicated handling when no currency note is detected in the image/camera frame
+  if (isInvalid) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+        {/* Breadcrumb */}
+        <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+          Analyze / <span style={{ color: '#0f172a', fontWeight: 600 }}>Screening Notice</span>
+        </div>
+
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: '1.25rem',
+            border: '1px solid #fed7aa',
+            padding: '2.5rem 2rem',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}
+        >
+          <div
+            style={{
+              width: '68px',
+              height: '68px',
+              borderRadius: '9999px',
+              background: '#fff7ed',
+              border: '2px solid #ffedd5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '1.25rem',
+            }}
+          >
+            <AlertOctagon size={36} color="#ea580c" />
+          </div>
+
+          <h2 style={{ fontSize: '1.65rem', fontWeight: 900, color: '#0f172a', margin: '0 0 0.5rem', letterSpacing: '-0.02em' }}>
+            No Valid Currency Note Detected
+          </h2>
+
+          <p style={{ color: '#64748b', fontSize: '0.95rem', maxWidth: '520px', lineHeight: 1.6, margin: '0 0 2rem' }}>
+            {warning || status_label || 'The system could not identify an Indian currency note in the captured frame. Please hold the banknote flat inside the camera frame or upload a clear photo.'}
+          </p>
+
+          {/* Guidance Cards */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '1rem',
+              width: '100%',
+              marginBottom: '2rem',
+              textAlign: 'left',
+            }}
+          >
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.75rem', padding: '1rem' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0f172a', marginBottom: '0.35rem' }}>
+                1. Frame Alignment
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
+                Hold the banknote horizontally so all four corners are visible inside the green reticle.
+              </p>
+            </div>
+
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.75rem', padding: '1rem' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0f172a', marginBottom: '0.35rem' }}>
+                2. Adequate Lighting
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
+                Avoid dark shadows or intense glare reflecting off glossy surfaces or transparent covers.
+              </p>
+            </div>
+
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.75rem', padding: '1rem' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0f172a', marginBottom: '0.35rem' }}>
+                3. Avoid Finger Cover
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0, lineHeight: 1.4 }}>
+                Keep fingers at the outer edges of the note so numerals and security features remain unobscured.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onReset}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.85rem 2rem',
+              borderRadius: '0.625rem',
+              background: '#0f172a',
+              color: '#ffffff',
+              border: 'none',
+              fontSize: '0.95rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 4px 6px -1px rgba(15, 23, 42, 0.2)',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = '#1e293b')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = '#0f172a')}
+          >
+            <RotateCcw size={18} />
+            <span>Try Again &bull; Re-scan Banknote</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const displayDenom = denomination_label || (denomination ? `₹${denomination}` : '₹10');
   const denomConfPct = Math.round((denomination_confidence ?? 0.98) * 100);

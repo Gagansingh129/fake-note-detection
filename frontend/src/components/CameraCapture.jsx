@@ -270,30 +270,81 @@ export default function CameraCapture({ onAnalyze, isLoading }) {
             </div>
           )}
 
-          {/* Guide Framing Box with Glowing Green Corners */}
+          {/* Guide Framing Box with Glowing Green Corners matching Indian Banknote Ratio */}
           {streamActive && (
             <div
+              className={isLoading ? "viewfinder-glow" : ""}
               style={{
                 position: 'absolute',
-                width: '82%',
-                height: '62%',
-                border: '1.5px dashed rgba(255, 255, 255, 0.25)',
-                borderRadius: '0.75rem',
+                width: '88%',
+                maxWidth: '520px',
+                aspectRatio: '2.15 / 1',
+                border: '1.5px dashed rgba(255, 255, 255, 0.35)',
+                borderRadius: '0.85rem',
                 pointerEvents: 'none',
+                boxShadow: '0 0 15px rgba(0, 0, 0, 0.45)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              {/* Corner Brackets */}
-              <div style={{ position: 'absolute', top: -3, left: -3, width: 22, height: 22, borderTop: '3.5px solid #10b981', borderLeft: '3.5px solid #10b981', borderTopLeftRadius: 8 }} />
-              <div style={{ position: 'absolute', top: -3, right: -3, width: 22, height: 22, borderTop: '3.5px solid #10b981', borderRight: '3.5px solid #10b981', borderTopRightRadius: 8 }} />
-              <div style={{ position: 'absolute', bottom: -3, left: -3, width: 22, height: 22, borderBottom: '3.5px solid #10b981', borderLeft: '3.5px solid #10b981', borderBottomLeftRadius: 8 }} />
-              <div style={{ position: 'absolute', bottom: -3, right: -3, width: 22, height: 22, borderBottom: '3.5px solid #10b981', borderRight: '3.5px solid #10b981', borderBottomRightRadius: 8 }} />
+              {/* Animated Laser Beam while screening */}
+              {isLoading && <div className="banknote-scan-laser" />}
+
+              {/* High-visibility Corner Brackets */}
+              <div style={{ position: 'absolute', top: -3, left: -3, width: 28, height: 28, borderTop: '4px solid #10b981', borderLeft: '4px solid #10b981', borderTopLeftRadius: 10, filter: 'drop-shadow(0 0 4px #10b981)' }} />
+              <div style={{ position: 'absolute', top: -3, right: -3, width: 28, height: 28, borderTop: '4px solid #10b981', borderRight: '4px solid #10b981', borderTopRightRadius: 10, filter: 'drop-shadow(0 0 4px #10b981)' }} />
+              <div style={{ position: 'absolute', bottom: -3, left: -3, width: 28, height: 28, borderBottom: '4px solid #10b981', borderLeft: '4px solid #10b981', borderBottomLeftRadius: 10, filter: 'drop-shadow(0 0 4px #10b981)' }} />
+              <div style={{ position: 'absolute', bottom: -3, right: -3, width: 28, height: 28, borderBottom: '4px solid #10b981', borderRight: '4px solid #10b981', borderBottomRightRadius: 10, filter: 'drop-shadow(0 0 4px #10b981)' }} />
+
+              {/* Center Subtle Crosshair Guide */}
+              <div style={{ position: 'relative', width: 36, height: 36, opacity: 0.35 }}>
+                <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 1.5, background: '#ffffff', transform: 'translateY(-50%)' }} />
+                <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1.5, background: '#ffffff', transform: 'translateX(-50%)' }} />
+              </div>
+
+              {/* Security Thread Guide Line */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: '42%',
+                  width: 1,
+                  borderLeft: '1px dotted rgba(52, 211, 153, 0.4)',
+                }}
+              />
+
+              {/* Status Pill during Loading */}
+              {isLoading && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    background: 'rgba(15, 23, 42, 0.85)',
+                    backdropFilter: 'blur(8px)',
+                    border: '1px solid rgba(16, 185, 129, 0.5)',
+                    padding: '0.45rem 1rem',
+                    borderRadius: '9999px',
+                    color: '#f8fafc',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  }}
+                >
+                  <Loader2 size={15} className="spin" color="#10b981" />
+                  <span>Scanning Banknote Features...</span>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Framing Prompt Text */}
-        <div style={{ textAlign: 'center', padding: '0.5rem', color: '#94a3b8', fontSize: '0.82rem' }}>
-          Align the note's edges with the frame
+        <div style={{ textAlign: 'center', padding: '0.65rem 1rem', color: '#94a3b8', fontSize: '0.82rem', background: '#090e17', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          <span style={{ color: '#34d399', fontWeight: 600 }}>Tip:</span> Hold banknote horizontally inside the green frame &bull; Ensure good lighting
         </div>
 
         {/* Floating Bottom Action Controls */}

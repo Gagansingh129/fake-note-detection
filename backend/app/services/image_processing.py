@@ -367,8 +367,17 @@ class ImageQualityChecker:
             except Exception:
                 pass
 
-        # Check if the image is already a pre-cropped / framed banknote
-        if 1.40 <= aspect_input <= 2.95 and (w <= 850 and h <= 550):
+        # Check if the image is already a pre-cropped / framed banknote of any resolution
+        # Indian banknotes have aspect ratio 1.85 - 2.55 (e.g. ₹500=2.21, ₹200=2.21, ₹100=2.27, ₹2000=2.51)
+        if 1.85 <= aspect_input <= 2.55:
+            # Check print texture density to confirm it's an actual banknote
+            sob_x_val = float(np.mean(np.abs(cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3))))
+            if sob_x_val >= 12.0:
+                meta["detection_method"] = "pre_aligned_frame"
+                meta["aspect_ratio"] = round(aspect_input, 2)
+                meta["is_banknote_detected"] = True
+                return image_bgr, (0, 0, w, h), False, meta
+        elif 1.40 <= aspect_input <= 2.95 and (w <= 850 and h <= 550):
             meta["detection_method"] = "pre_aligned_frame"
             meta["aspect_ratio"] = round(aspect_input, 2)
             meta["is_banknote_detected"] = True

@@ -218,3 +218,31 @@ input[type="password"] {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* NoteGuard Banknote Camera Viewfinder & Laser Scan */
+@keyframes banknoteScanLaser {
+  0% { top: 4%; opacity: 0.95; }
+  50% { top: 92%; opacity: 0.95; }
+  100% { top: 4%; opacity: 0.95; }
+}
+
+.banknote-scan-laser {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #10b981 20%, #34d399 50%, #10b981 80%, transparent);
+  box-shadow: 0 0 12px #10b981, 0 0 24px rgba(16, 185, 129, 0.6);
+  animation: banknoteScanLaser 2s infinite ease-in-out;
+  pointer-events: none;
+  z-index: 15;
+}
+
+@keyframes reticleGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.35); border-color: rgba(16, 185, 129, 0.45); }
+  50% { box-shadow: 0 0 22px rgba(16, 185, 129, 0.75); border-color: rgba(52, 211, 153, 0.85); }
+}
+
+.viewfinder-glow {
+  animation: reticleGlow 2.5s infinite ease-in-out;
+}

@@ -90,9 +90,10 @@ def train_multiclass_model(
     dataset_base: Path = Path("dataset/denomination"),
     output_model_path: Path = Path("backend/models/denomination_model.keras"),
     classes_json_path: Path = Path("backend/models/class_names.json"),
-    epochs_head: int = 10,
-    epochs_fine: int = 8,
-    batch_size: int = 16
+    epochs_head: int = 6,
+    epochs_fine: int = 4,
+    batch_size: int = 32,
+    fresh_build: bool = True
 ):
     print("=" * 65)
     print("  NoteGuard AI: Training Dedicated Denomination Classifier  ")
@@ -124,9 +125,19 @@ def train_multiclass_model(
         model = tf.keras.models.load_model(str(output_model_path))
         base_model = model.get_layer("efficientnetb0")
         base_model.trainable = False
+        if fresh_build:
+            print("[*] Reinitializing classification head weights to purge previous contamination...")
+            for layer_name in ["head_dense", "denomination_probabilities"]:
+                layer = model.get_layer(layer_name)
+                w = layer.get_weights()
+                if len(w) == 2:
+                    new_w = tf.keras.initializers.GlorotUniform()(shape=w[0].shape).numpy()
+                    new_b = tf.keras.initializers.Zeros()(shape=w[1].shape).numpy()
+                    layer.set_weights([new_w, new_b])
     else:
+        print("[*] Initializing clean EfficientNetB0 backbone...")
         base_model = tf.keras.applications.EfficientNetB0(
-            weights="imagenet",
+            weights=None,
             include_top=False,
             input_shape=(224, 224, 3)
         )
