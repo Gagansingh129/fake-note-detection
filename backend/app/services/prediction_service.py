@@ -26,7 +26,8 @@ from app.services.gradcam import compute_gradcam_heatmap, overlay_heatmap_on_ima
 from app.services.security_features import (
     analyze_banknote_security_features,
     check_for_bogus_1000_numeral,
-    check_for_100_numeral
+    check_for_100_numeral,
+    detect_written_denomination_numeral
 )
 
 
@@ -242,16 +243,29 @@ def predict_denomination(
         confidence = 0.0
         preds = []
 
-    # 4. Multi-Signal Corroboration with Ground-Truth Physical Currency Signatures
-    # The dedicated 9-class deep learning model has 98.15% test accuracy.
-    # When CNN confidence is high (>= 0.70), trust the deep representation,
-    # except when unambiguous physical color signatures correct camera white-balance distortion.
+    # 4. Direct Written Denomination Numeral Recognition (Multi-scale template matching)
+    # The actual numerical value written on the banknote (e.g. ₹500, ₹200, ₹100, ₹50, ₹20, ₹10, ₹2000)
+    # is the ground-truth anchor for the denomination.
+    try:
+        written_numeral, numeral_score = detect_written_denomination_numeral(img_bgr)
+    except Exception as e:
+        print(f"[!] Numeral template matching error: {e}")
+        written_numeral, numeral_score = None, 0.0
 
-    # Guard 1: Physical Color Safeguards for Camera White-Balance Shifts on Low/Borderline Confidence (< 0.70)
-    # Only correct when CNN confidence is ambiguous or when predicted class is "unknown"
-    if confidence < 0.70 or predicted_class == "unknown":
-        # 1a. Lavender (₹100)
-        # Authentic ₹100 is lavender throughout; must have high lavender and low orange/yellow (< 0.20)
+    if written_numeral is not None and numeral_score >= 0.65:
+        # High confidence direct visual numeral match: anchor the written denomination
+        predicted_class = written_numeral
+        confidence = max(confidence, numeral_score)
+    elif written_numeral is not None and numeral_score >= 0.58 and confidence < 0.70:
+        predicted_class = written_numeral
+        confidence = max(confidence, numeral_score)
+
+    # 5. Multi-Signal Corroboration with Ground-Truth Physical Currency Signatures
+    # When CNN confidence is high (>= 0.50) or numeral is confirmed, trust the deep/numeral representation.
+    # NEVER let color ratios override a high-confidence CNN prediction!
+    # ONLY apply color fallbacks when confidence is ambiguous (< 0.50) or predicted_class is "unknown"
+    if confidence < 0.50 or predicted_class == "unknown":
+        # Lavender (₹100)
         if (
             lavender_pct >= 0.22 
             and orange_yellow_pct < 0.20 
@@ -261,168 +275,40 @@ def predict_denomination(
             and magenta_pct < 0.20
         ):
             predicted_class = "100"
-            confidence = max(confidence, 0.92)
+            confidence = max(confidence, 0.88)
 
-        # 1b. Fluorescent Blue (₹50)
+        # Fluorescent Blue (₹50)
         elif cyan_pct >= 0.20 and cyan_pct > lavender_pct and magenta_pct < 0.10:
             predicted_class = "50"
-            confidence = max(confidence, 0.92)
+            confidence = max(confidence, 0.88)
 
-        # 1c. Stone Grey (₹500)
+        # Stone Grey (₹500)
         elif is_stone_grey and mean_sat < 28.0 and lavender_pct < 0.08 and cyan_pct < 0.08:
             predicted_class = "500"
-            confidence = max(confidence, 0.92)
+            confidence = max(confidence, 0.88)
 
-        # 1d. Bright Yellow / Orange (₹200)
+        # Bright Yellow / Orange (₹200)
         elif orange_yellow_pct >= 0.28 and mean_sat >= 42.0 and lavender_pct < 0.08 and cyan_pct < 0.08:
             predicted_class = "200"
-            confidence = max(confidence, 0.92)
+            confidence = max(confidence, 0.88)
 
-        # 1e. Chocolate Brown (₹10)
+        # Chocolate Brown (₹10)
         elif chocolate_brown_pct >= 0.22 and lavender_pct < 0.10 and cyan_pct < 0.08:
             predicted_class = "10"
-            confidence = max(confidence, 0.92)
+            confidence = max(confidence, 0.88)
 
-        # 1f. Greenish Yellow (₹20)
+        # Greenish Yellow (₹20)
         elif green_yellow_pct >= 0.22 and lavender_pct < 0.08 and cyan_pct < 0.08:
             predicted_class = "20"
-            confidence = max(confidence, 0.92)
+            confidence = max(confidence, 0.88)
 
-        # 1g. Magenta (₹2000)
+        # Magenta (₹2000)
         elif magenta_pct >= 0.25 and magenta_pct > lavender_pct:
             predicted_class = "2000"
-            confidence = max(confidence, 0.92)
-
-    # Guard 2: ₹2000 False-Positive Protection
-    # A ₹2000 note is intensely magenta (RBI specification: Magenta, 30-85%).
-    # If predicted "2000" but magenta is virtually absent (< 8%), reject 2000.
-    if predicted_class == "2000" and magenta_pct < 0.08:
-        if lavender_pct >= 0.18:
-            predicted_class = "100"
-            confidence = 0.90
-        elif cyan_pct >= 0.18:
-            predicted_class = "50"
-            confidence = 0.90
-        elif is_stone_grey:
-            predicted_class = "500"
-            confidence = 0.90
-        elif len(preds) > 0:
-            denom_classes_clean = [c.replace("Rs_", "") for c in denom_classes]
-            filtered_preds = [p if denom_classes_clean[i] != "2000" else -1.0 for i, p in enumerate(preds)]
-            best_alt_idx = int(np.argmax(filtered_preds))
-            predicted_class = denom_classes_clean[best_alt_idx]
-            confidence = float(filtered_preds[best_alt_idx])
-
-    # Guard 3: ₹50 False-Positive Protection
-    # A ₹50 note in the Mahatma Gandhi New Series is Fluorescent Cyan/Blue (RBI specification).
-    # If predicted "50" but cyan is virtually absent (cyan_pct < 0.08), reject 50.
-    if predicted_class == "50" and cyan_pct < 0.08:
-        if green_yellow_pct >= 0.20:
-            predicted_class = "20"
-            confidence = max(confidence, 0.92)
-        elif chocolate_brown_pct >= 0.15:
-            predicted_class = "10"
-            confidence = max(confidence, 0.92)
-        elif orange_yellow_pct >= 0.20:
-            predicted_class = "200"
-            confidence = max(confidence, 0.92)
-        elif lavender_pct >= 0.20:
-            predicted_class = "100"
-            confidence = max(confidence, 0.92)
-        elif is_stone_grey:
-            predicted_class = "500"
-            confidence = max(confidence, 0.92)
-        elif len(preds) > 0:
-            denom_classes_clean = [c.replace("Rs_", "") for c in denom_classes]
-            filtered_preds = [p if denom_classes_clean[i] != "50" else -1.0 for i, p in enumerate(preds)]
-            best_alt_idx = int(np.argmax(filtered_preds))
-            predicted_class = denom_classes_clean[best_alt_idx]
-            confidence = float(filtered_preds[best_alt_idx])
-
-    # Guard 4: Lavender ₹100 Definitive Physical Match
-    # Lavender (Hue 105-140) is strictly unique to ₹100 banknotes in India.
-    # Real ₹100 notes are lavender throughout; warm notes (₹20, ₹200, ₹10) have orange_yellow_pct >= 0.25
-    # and must NEVER trigger ₹100. Only apply when CNN confidence is low (< 0.70) or predicted_class is "100" / "unknown".
-    if (
-        (confidence < 0.70 or predicted_class in ["100", "unknown"])
-        and lavender_pct >= 0.22 
-        and orange_yellow_pct < 0.20 
-        and lavender_pct > orange_yellow_pct * 1.5 
-        and lavender_pct > chocolate_brown_pct 
-        and lavender_pct > cyan_pct * 1.2
-        and magenta_pct < 0.20
-    ):
-        predicted_class = "100"
-        confidence = max(confidence, 0.95)
-
-    # Guard 4b: Anti-False ₹100 Protection (Corrects warm currency wrongly labeled as ₹100)
-    # Only applies when CNN confidence is low / borderline (< 0.70) or predicted_class is "unknown".
-    # NEVER override a high-confidence CNN prediction of ₹100!
-    if confidence < 0.70 and predicted_class == "100" and orange_yellow_pct >= 0.35 and lavender_pct < 0.10:
-        if chocolate_brown_pct >= 0.20 and chocolate_brown_pct >= orange_yellow_pct * 0.70:
-            predicted_class = "10"
-            confidence = max(confidence, 0.95)
-        elif mean_hue >= 22.0 or green_yellow_pct >= 0.12 or (orange_yellow_pct >= 0.50 and chocolate_brown_pct < 0.30):
-            # Mahatma Gandhi New Series ₹20 is greenish-yellow / warm ochre (Hue 22-45)
-            predicted_class = "20"
-            confidence = max(confidence, 0.96)
-        else:
-            predicted_class = "200"
-            confidence = max(confidence, 0.95)
-
-    # Guard 5: ₹20 Greenish-Yellow Banknote Confirmation
-    # Mahatma Gandhi New Series ₹20 banknotes exhibit greenish-yellow / warm ochre (Hue 22-48).
-    # Confirms ₹20 notes or resolves ambiguous/unknown predictions (< 0.70).
-    # NEVER override high-confidence CNN predictions of ₹100, ₹50, ₹500, etc.!
-    if (confidence < 0.70 or predicted_class in ["20", "unknown"]) and (green_yellow_pct >= 0.18 or orange_yellow_pct >= 0.38) and lavender_pct < 0.10 and cyan_pct < 0.10 and magenta_pct < 0.10:
-        if chocolate_brown_pct < orange_yellow_pct * 0.70:
-            if mean_hue >= 22.0:
-                predicted_class = "20"
-                confidence = max(confidence, 0.96)
-            elif mean_hue < 21.0 and orange_yellow_pct >= 0.30:
-                predicted_class = "200"
-                confidence = max(confidence, 0.95)
-
-    # Guard 5b: ₹20 False-Positive Protection
-    # Only applies when CNN confidence is low / borderline (< 0.70) or ambiguous.
-    # When CNN is high-confidence, trust the retrained deep representation.
-    if confidence < 0.70 and predicted_class == "20":
-        if lavender_pct >= 0.18 and lavender_pct > green_yellow_pct * 1.5:
-            predicted_class = "100"
-            confidence = max(confidence, 0.94)
-        elif cyan_pct >= 0.18 and cyan_pct > green_yellow_pct * 1.5:
-            predicted_class = "50"
-            confidence = max(confidence, 0.94)
-        elif green_yellow_pct < 0.08 and chocolate_brown_pct >= 0.20 and lavender_pct < 0.12:
-            predicted_class = "10"
-            confidence = max(confidence, 0.95)
-        elif green_yellow_pct < 0.06 and orange_yellow_pct >= 0.35 and mean_hue < 20.0:
-            predicted_class = "200"
-            confidence = max(confidence, 0.94)
-
-    # Guard 5c: ₹10 vs ₹20 Disambiguation (Greenish-Yellow vs Chocolate Brown)
-    # A genuine ₹20 note is greenish-yellow (mean_hue >= 30.0, green_yellow_pct >= 0.14).
-    # If predicted "10" but the note is greenish-yellow with low chocolate brown, it is ₹20.
-    if predicted_class == "10" and (green_yellow_pct >= 0.16 and chocolate_brown_pct < 0.14 or (mean_hue >= 32.0 and green_yellow_pct >= 0.14)):
-        predicted_class = "20"
-        confidence = max(confidence, 0.95)
-
-    # Guard 6: Direct Chocolate Brown ₹10 Physical Match
-    # Confirms ₹10 notes or resolves ambiguous/unknown predictions (< 0.70).
-    if (confidence < 0.70 or predicted_class in ["10", "unknown"]) and chocolate_brown_pct >= 0.20 and chocolate_brown_pct >= orange_yellow_pct * 0.75 and chocolate_brown_pct > lavender_pct * 1.8 and green_yellow_pct < 0.12 and cyan_pct < 0.10:
-        predicted_class = "10"
-        confidence = max(confidence, 0.95)
-
-    # Guard 7: Magenta ₹2000 Definitive Physical Match
-    # Magenta (Hue 145-178, Sat >= 35) is uniquely characteristic of ₹2000 banknotes in India.
-    # Confirms ₹2000 notes or resolves ambiguous/unknown predictions (< 0.70).
-    # NEVER override high-confidence CNN predictions of ₹10, ₹20, ₹50, ₹100, etc.!
-    if (confidence < 0.70 or predicted_class in ["2000", "unknown"]) and magenta_pct >= 0.38 and magenta_pct > lavender_pct * 1.5:
-        predicted_class = "2000"
-        confidence = max(confidence, 0.96)
+            confidence = max(confidence, 0.88)
 
     # Reject low-confidence predictions
-    if confidence < 0.35 and predicted_class not in CIRCULATION_METADATA:
+    if confidence < 0.30 and predicted_class not in CIRCULATION_METADATA:
         return {
             "denomination": None,
             "currency": "INR",
@@ -549,14 +435,21 @@ def run_prediction_pipeline(
         dummy_markers = sec_features.get("dummy_currency_markers", {})
         has_dummy = dummy_markers.get("detected", False)
 
+        sec_thread_valid = sec_features.get("security_thread", {}).get("is_valid", False)
+        print_crisp_valid = sec_features.get("print_texture", {}).get("is_valid", False)
+
         # Multi-modal evidence fusion:
-        # Deep learning authenticity representation is primary.
-        # Only corroborate with cv_score when the deep learning model ALREADY indicates genuine (raw_prob_genuine >= 0.50).
-        # NEVER inflate a low-probability / fake note with cv_score!
-        if is_valid_denom and not has_dummy and not bogus_1000 and raw_prob_genuine >= 0.50 and cv_score >= 0.65:
-            prob_genuine = 0.60 * raw_prob_genuine + 0.40 * cv_score
+        # Deep learning authenticity representation is corroborated with OpenCV physical security checks.
+        # A genuine banknote MUST exhibit a physical security thread pattern.
+        if not sec_thread_valid:
+            prob_genuine = min(raw_prob_genuine * 0.40, 0.38)
+        elif is_valid_denom and not has_dummy and not bogus_1000:
+            if raw_prob_genuine >= 0.50 and cv_score >= 0.60:
+                prob_genuine = 0.60 * raw_prob_genuine + 0.40 * cv_score
+            else:
+                prob_genuine = raw_prob_genuine
         else:
-            prob_genuine = raw_prob_genuine
+            prob_genuine = min(raw_prob_genuine, 0.35)
 
         genuine_score = round(prob_genuine, 4)
         fake_score = round(1.0 - prob_genuine, 4)

@@ -11,7 +11,7 @@ or optical magnification (micro-lettering) cannot be definitively verified
 via camera and are explicitly flagged as unavailable.
 """
 
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from pathlib import Path
 import cv2
 import numpy as np
@@ -29,6 +29,81 @@ CURRENCY_DIMENSIONS = {
     "1000": {"length_mm": 150, "width_mm": 66, "aspect": 2.27, "color_family": "Non-existent Bogus / Illegal Tender"},
     "2000": {"length_mm": 166, "width_mm": 66, "aspect": 2.51, "color_family": "Magenta"},
 }
+
+
+_LOADED_DENOM_TEMPLATES = None
+
+
+def _get_denom_templates() -> Dict[str, np.ndarray]:
+    """Caches grayscale denomination numeral templates in memory."""
+    global _LOADED_DENOM_TEMPLATES
+    if _LOADED_DENOM_TEMPLATES is not None:
+        return _LOADED_DENOM_TEMPLATES
+
+    models_dir = Path(__file__).resolve().parent.parent / "models"
+    if not models_dir.exists():
+        models_dir = Path(__file__).resolve().parent.parent.parent / "models"
+
+    templates = {}
+    for denom in ["10", "20", "50", "100", "200", "500", "1000", "2000"]:
+        tpl_path = models_dir / f"template_{denom}.png"
+        if tpl_path.exists():
+            tpl_img = cv2.imread(str(tpl_path), cv2.IMREAD_GRAYSCALE)
+            if tpl_img is not None:
+                templates[denom] = tpl_img
+
+    _LOADED_DENOM_TEMPLATES = templates
+    return _LOADED_DENOM_TEMPLATES
+
+
+def detect_written_denomination_numeral(img_bgr: np.ndarray) -> Tuple[Optional[str], float]:
+    """
+    Directly recognizes the denomination numeral written on the banknote
+    (10, 20, 50, 100, 200, 500, 1000, 2000) using multi-scale template matching
+    in the primary bottom-right and secondary top-left numeral zones.
+    Returns (detected_denom_str, match_confidence).
+    """
+    templates = _get_denom_templates()
+    if not templates:
+        return None, 0.0
+
+    h, w = img_bgr.shape[:2]
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+
+    # 1. Primary Bottom-right numeral zone (y: 0.45-0.98, x: 0.45-0.98)
+    roi_br = gray[int(h * 0.45):int(h * 0.98), int(w * 0.45):int(w * 0.98)]
+    # 2. Secondary Top-left numeral zone (y: 0.0-0.45, x: 0.0-0.45)
+    roi_tl = gray[int(h * 0.0):int(h * 0.45), int(w * 0.0):int(w * 0.45)]
+
+    rois = [roi_br, roi_tl]
+    best_denom = None
+    best_score = 0.0
+
+    for denom, tpl in templates.items():
+        th, tw = tpl.shape[:2]
+        for roi in rois:
+            sh, sw = roi.shape[:2]
+            if sh < 20 or sw < 20:
+                continue
+
+            nominal_scale = (sh * 0.35) / max(1, th)
+            min_s = max(0.2, nominal_scale * 0.5)
+            max_s = min(2.5, nominal_scale * 1.8)
+
+            for scale in np.linspace(min_s, max_s, 7):
+                nw, nh = int(tw * scale), int(th * scale)
+                if nh >= sh or nw >= sw or nh < 15 or nw < 15:
+                    continue
+                resized = cv2.resize(tpl, (nw, nh), interpolation=cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LINEAR)
+                res = cv2.matchTemplate(roi, resized, cv2.TM_CCOEFF_NORMED)
+                _, max_v, _, _ = cv2.minMaxLoc(res)
+                if max_v > best_score:
+                    best_score = float(max_v)
+                    best_denom = denom
+
+    if best_score >= 0.58:
+        return best_denom, round(best_score, 4)
+    return None, round(best_score, 4)
 
 
 def check_for_bogus_1000_numeral(img_bgr: np.ndarray) -> Tuple[bool, float]:
@@ -192,14 +267,20 @@ def analyze_banknote_security_features(
     is_bogus_1000, bogus_score = check_for_bogus_1000_numeral(image_bgr)
 
     # Composite Supporting Score (0.0 to 1.0)
-    score_components = [
-        1.0 if aspect_consistent else 0.4,
-        1.0 if thread_detected and not has_red_fake_thread else 0.3,
-        1.0 if print_crisp else 0.4,
-        1.0 if portrait_contrast_pass else 0.4,
-        0.1 if dummy_note_flag or is_bogus_1000 else 1.0,
-    ]
-    cv_support_score = round(float(np.mean(score_components)), 3)
+    # The security thread is a foundational physical feature on Indian currency.
+    # If missing or artificial, the composite CV support score is capped at 0.35.
+    if not (thread_detected and not has_red_fake_thread):
+        cv_support_score = 0.35
+    elif dummy_note_flag or is_bogus_1000:
+        cv_support_score = 0.10
+    else:
+        score_components = [
+            1.0 if aspect_consistent else 0.4,
+            1.0,
+            1.0 if print_crisp else 0.4,
+            1.0 if portrait_contrast_pass else 0.4,
+        ]
+        cv_support_score = round(float(np.mean(score_components)), 3)
 
     return {
         "aspect_ratio": {

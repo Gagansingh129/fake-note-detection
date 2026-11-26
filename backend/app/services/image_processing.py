@@ -297,21 +297,22 @@ class ImageQualityChecker:
 
         for c in contours:
             area = cv2.contourArea(c)
-            if area < (h * w * 0.10):  # Must occupy at least 10% of camera field
+            x, y, cw, ch = cv2.boundingRect(c)
+            box_area = cw * ch
+            if box_area < (h * w * 0.08) and area < (h * w * 0.04):
                 continue
 
             # Approximate polygon
             peri = cv2.arcLength(c, True)
             approx = cv2.approxPolyDP(c, 0.03 * peri, True)
 
-            x, y, cw, ch = cv2.boundingRect(c)
             aspect = float(cw) / ch if ch > 0 else 0
 
             # Centrality score
             cx = x + cw / 2.0
             cy = y + ch / 2.0
             centrality = 1.0 - (abs(cx - w / 2.0) / (w / 2.0) * 0.4 + abs(cy - h / 2.0) / (h / 2.0) * 0.6)
-            score = area * max(0.1, centrality)
+            score = max(area, box_area * 0.5) * max(0.1, centrality)
 
             if 1.35 <= aspect <= 3.2:
                 if score > max_score:
@@ -368,8 +369,9 @@ class ImageQualityChecker:
                 pass
 
         # Check if the image is already a pre-cropped / framed banknote of any resolution
-        # Indian banknotes have aspect ratio 1.85 - 2.55 (e.g. ₹500=2.21, ₹200=2.21, ₹100=2.27, ₹2000=2.51)
-        if 1.85 <= aspect_input <= 2.55:
+        # Indian banknotes have aspect ratio 1.85 - 2.80 (e.g. ₹500=2.27, ₹200=2.21, ₹100=2.15, ₹10=1.95, ₹2000=2.51, mockups up to 2.80)
+        # Note: 16:9 video/webcam frame has aspect ratio 1.778, which is strictly below 1.85.
+        if 1.85 <= aspect_input <= 2.80:
             # Check print texture density to confirm it's an actual banknote
             sob_x_val = float(np.mean(np.abs(cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3))))
             if sob_x_val >= 12.0:
@@ -378,10 +380,13 @@ class ImageQualityChecker:
                 meta["is_banknote_detected"] = True
                 return image_bgr, (0, 0, w, h), False, meta
         elif 1.40 <= aspect_input <= 2.95 and (w <= 850 and h <= 550):
-            meta["detection_method"] = "pre_aligned_frame"
-            meta["aspect_ratio"] = round(aspect_input, 2)
-            meta["is_banknote_detected"] = True
-            return image_bgr, (0, 0, w, h), False, meta
+            gray_input = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+            sob_x_val = float(np.mean(np.abs(cv2.Sobel(gray_input, cv2.CV_64F, 1, 0, ksize=3))))
+            if sob_x_val >= 12.0:
+                meta["detection_method"] = "pre_aligned_frame"
+                meta["aspect_ratio"] = round(aspect_input, 2)
+                meta["is_banknote_detected"] = True
+                return image_bgr, (0, 0, w, h), False, meta
 
         # 1. For full camera scenes: Check for a banknote held in front of the lens
         if w >= 800 and h >= 480:
@@ -412,8 +417,8 @@ class ImageQualityChecker:
                     cropped = cv2.rotate(cropped, cv2.ROTATE_90_CLOCKWISE)
                     crop_aspect = float(cropped.shape[1]) / max(1, cropped.shape[0])
 
-                # Validate genuine Indian banknote aspect ratio (1.90 - 2.50)
-                if 1.90 <= crop_aspect <= 2.50:
+                # Validate genuine Indian banknote aspect ratio (1.70 - 2.85)
+                if 1.70 <= crop_aspect <= 2.85:
                     gray_crop = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
                     sob_x_val = float(np.mean(np.abs(cv2.Sobel(gray_crop, cv2.CV_64F, 1, 0, ksize=3))))
                     # Validate print character stroke density (rules out people, furniture, clothing)
@@ -421,7 +426,7 @@ class ImageQualityChecker:
                     _, _, stats, _ = cv2.connectedComponentsWithStats(thresh)
                     char_count = sum(1 for s in stats[1:] if 15 <= s[cv2.CC_STAT_AREA] <= 600)
 
-                    if char_count >= 130 and sob_x_val >= 14.0:
+                    if char_count >= 60 and sob_x_val >= 9.0:
                         meta["detection_method"] = "bounding_box"
                         meta["aspect_ratio"] = round(crop_aspect, 2)
                         meta["is_banknote_detected"] = True
