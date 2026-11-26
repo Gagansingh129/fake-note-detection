@@ -128,6 +128,63 @@ class ImageQualityChecker:
             "message": message
         }
 
+    def locate_held_banknote(self, image_bgr: np.ndarray) -> Tuple[Tuple[int, int, int, int], float, bool]:
+        """
+        Locates a currency banknote held in front of a camera/webcam scene.
+        Uses gradient projections to detect the sharp top/bottom/left/right boundaries
+        of the note, separating it from the user's clothing, face, and background.
+        """
+        h, w = image_bgr.shape[:2]
+        gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+
+        # 1. Edge-based horizontal projection to find top & bottom edges of the note
+        sob_y = np.abs(cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3))
+        # Focus on middle 70% of X to avoid fingers/edges
+        mid_sob_y = sob_y[:, int(w * 0.15):int(w * 0.85)]
+        row_grad = np.mean(mid_sob_y, axis=1)
+
+        kernel = np.ones(9) / 9.0
+        smooth_grad = np.convolve(row_grad, kernel, mode='same')
+
+        # Search for top edge in range [int(h*0.10) : int(h*0.55)]
+        y_min_search = int(h * 0.10)
+        y_max_search = int(h * 0.55)
+        top_y = y_min_search + int(np.argmax(smooth_grad[y_min_search:y_max_search]))
+
+        # Search for bottom edge in range [top_y + int(h*0.25) : min(h - 20, top_y + int(h*0.65))]
+        bot_min = top_y + int(h * 0.25)
+        bot_max = min(h - 20, top_y + int(h * 0.65))
+        if bot_max > bot_min:
+            bot_y = bot_min + int(np.argmax(smooth_grad[bot_min:bot_max]))
+        else:
+            bot_y = int(h * 0.80)
+
+        note_h = bot_y - top_y
+        band_gray = gray[top_y:bot_y, :]
+        std_detail = float(np.std(band_gray))
+
+        # 2. Vertical edges in the note horizontal band
+        sob_x = np.abs(cv2.Sobel(band_gray, cv2.CV_64F, 1, 0, ksize=3))
+        col_grad = np.mean(sob_x, axis=0)
+        smooth_col = np.convolve(col_grad, kernel, mode='same')
+
+        # Left edge search [int(w*0.05) : int(w*0.35)]
+        left_x = int(w * 0.05) + int(np.argmax(smooth_col[int(w * 0.05):int(w * 0.35)]))
+        # Right edge search [int(w*0.65) : int(w*0.95)]
+        right_x = int(w * 0.65) + int(np.argmax(smooth_col[int(w * 0.65):int(w * 0.95)]))
+        note_w = right_x - left_x
+
+        aspect = float(note_w) / max(1, note_h)
+
+        top_peak_val = float(smooth_grad[top_y])
+        bot_peak_val = float(smooth_grad[bot_y])
+        mean_grad = float(np.mean(smooth_grad))
+
+        has_strong_edges = (top_peak_val > mean_grad * 1.4) and (bot_peak_val > mean_grad * 1.25)
+        is_valid_note = bool((1.40 <= aspect <= 3.10) and (note_h >= h * 0.20) and has_strong_edges and (std_detail >= 25.0))
+
+        return (top_y, bot_y, left_x, right_x), aspect, is_valid_note
+
     def detect_and_crop_banknote(self, image_bgr: np.ndarray) -> Tuple[np.ndarray, Tuple[int, int, int, int], bool, Dict[str, Any]]:
         """
         Locates the currency note in full camera scenes, crops out background,
@@ -270,12 +327,30 @@ class ImageQualityChecker:
             except Exception:
                 pass
 
-        # Bounding box fallback (only when contour isolates note cleanly from surroundings)
+        # Check if the image is already a pre-cropped / framed banknote
+        if 1.40 <= aspect_input <= 2.95 and (w <= 850 and h <= 550):
+            meta["detection_method"] = "pre_aligned_frame"
+            meta["aspect_ratio"] = round(aspect_input, 2)
+            meta["is_banknote_detected"] = True
+            return image_bgr, (0, 0, w, h), False, meta
+
+        # 1. For full camera scenes: Check for a banknote held in front of the lens
+        if w >= 800 and h >= 480:
+            held_bbox, held_aspect, is_held_valid = self.locate_held_banknote(image_bgr)
+            if is_held_valid:
+                ty, by, lx, rx = held_bbox
+                cropped = image_bgr[ty:by, lx:rx]
+                meta["detection_method"] = "held_banknote_locator"
+                meta["aspect_ratio"] = round(held_aspect, 2)
+                meta["is_banknote_detected"] = True
+                return cropped, (lx, ty, rx - lx, by - ty), True, meta
+
+        # 2. Bounding box fallback (only when contour isolates an actual note cleanly from surroundings)
         if best_box:
             x, y, cw, ch = best_box
-            # Check if box is likely an internal fragment (e.g. spans full width but cuts height in half)
+            is_entire_frame = (cw >= w * 0.90 and ch >= h * 0.85)
             is_internal_band = (cw >= w * 0.88 and ch < h * 0.70) or (ch >= h * 0.88 and cw < w * 0.70)
-            if not is_internal_band and (cw * ch) >= (w * h * 0.25):
+            if not is_entire_frame and not is_internal_band and (cw * ch) >= (w * h * 0.20):
                 pad_x = int(cw * 0.03)
                 pad_y = int(ch * 0.03)
                 x0 = max(0, x - pad_x)
@@ -283,18 +358,31 @@ class ImageQualityChecker:
                 x1 = min(w, x + cw + pad_x)
                 y1 = min(h, y + ch + pad_y)
                 cropped = image_bgr[y0:y1, x0:x1]
-                # If vertical banknote, auto-orient to standard horizontal format
-                if cropped.shape[0] > cropped.shape[1] * 1.25:
-                    cropped = cv2.rotate(cropped, cv2.ROTATE_90_CLOCKWISE)
-                meta["detection_method"] = "bounding_box"
-                meta["aspect_ratio"] = round(float(cropped.shape[1]) / max(1, cropped.shape[0]), 2)
-                return cropped, (x0, y0, x1 - x0, y1 - y0), True, meta
+                # Validate that the crop has banknote texture (not plain clothing or wall)
+                gray_crop = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
+                sob_x_val = float(np.mean(np.abs(cv2.Sobel(gray_crop, cv2.CV_64F, 1, 0, ksize=3))))
+                if sob_x_val >= 14.0:
+                    if cropped.shape[0] > cropped.shape[1] * 1.25:
+                        cropped = cv2.rotate(cropped, cv2.ROTATE_90_CLOCKWISE)
+                    meta["detection_method"] = "bounding_box"
+                    meta["aspect_ratio"] = round(float(cropped.shape[1]) / max(1, cropped.shape[0]), 2)
+                    meta["is_banknote_detected"] = True
+                    return cropped, (x0, y0, x1 - x0, y1 - y0), True, meta
 
-        if 1.45 <= aspect_input <= 2.95:
-            meta["detection_method"] = "pre_aligned_frame"
-            meta["aspect_ratio"] = round(aspect_input, 2)
-            return image_bgr, (0, 0, w, h), False, meta
+        # 3. Only accept as pre-aligned if image is a compact crop of a note (w <= 800 and h <= 500)
+        # Large camera frames (e.g. 1280x720, 1920x1080) without a located note must not pass
+        if 1.45 <= aspect_input <= 2.95 and (w <= 800 and h <= 500):
+            gray_input = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+            sob_val = float(np.mean(np.abs(cv2.Sobel(gray_input, cv2.CV_64F, 1, 0, ksize=3))))
+            if sob_val >= 14.0:
+                meta["detection_method"] = "pre_aligned_frame"
+                meta["aspect_ratio"] = round(aspect_input, 2)
+                meta["is_banknote_detected"] = True
+                return image_bgr, (0, 0, w, h), False, meta
 
+        # 4. If it's a large camera scene and no banknote was located in it
+        meta["is_banknote_detected"] = False
+        meta["detection_method"] = "no_banknote_located"
         return image_bgr, (0, 0, w, h), False, meta
 
     def enhance_banknote_contrast(self, image_bgr: np.ndarray) -> np.ndarray:

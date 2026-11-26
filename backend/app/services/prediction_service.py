@@ -185,9 +185,9 @@ def predict_denomination(
 
     # 2. Physical RBI Color Space Analysis (HSV & BGR)
     h, w = img_bgr.shape[:2]
-    # Sample from central banknote zone (avoids user room walls, background, and frame borders)
-    cx0, cx1 = int(w * 0.22), int(w * 0.78)
-    cy0, cy1 = int(h * 0.15), int(h * 0.85)
+    # Sample from central banknote core zone (avoids clothing, room background, and frame borders)
+    cx0, cx1 = int(w * 0.25), int(w * 0.75)
+    cy0, cy1 = int(h * 0.25), int(h * 0.75)
     roi = img_bgr[cy0:cy1, cx0:cx1] if (cx1 > cx0 and cy1 > cy0) else img_bgr
     hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
     h_chan, s_chan, v_chan = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
