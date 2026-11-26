@@ -61,6 +61,7 @@ USER_CAMERA_SOURCES = {
     "100": [
         "scratch/upload_1793940479872_camera_7485fe882e3247268dbd139ce49104e7.jpg", # user real 100 note webcam
         "scratch/inspect_user_cam_100_aug_006.jpg", # user real 100 note
+        "scratch/user_latest_100_scanned.jpg", # user real 100 note from scanner
         "scratch/latest_user_uploads/upload_1793594635771_camera_7521002a944548d09ab2b463e2ca4bbe.jpg", # ₹100 in hand
         "scratch/latest_user_uploads/upload_1793594863466_camera_839842c48bd54c48b0fa5c9f0cb09f15.jpg", # ₹100 on desk
         "scratch/new_test_scans/*105*.jpg", # ₹100 in hand
@@ -253,11 +254,12 @@ def ingest_all():
 
         print(f"[*] Ingested {count_per_denom * len(extracted_bases)} camera samples into {split_name}/genuine")
 
-    # 3. Ingest into Denomination Dataset (train & val)
+    # 3. Ingest into Denomination Dataset (train & validation)
     print("\n--- Ingesting into Denomination Dataset ---")
     denom_targets = {
-        "train": (Path("dataset/denomination/train"), 50),  # 50 camera samples per denom
-        "val": (Path("dataset/denomination/val"), 15),     # 15 camera samples per denom
+        "train": (Path("dataset/denomination/train"), 60),       # 60 camera samples per denom
+        "validation": (Path("dataset/denomination/validation"), 20), # 20 camera samples per denom
+        "val": (Path("dataset/denomination/val"), 20),           # mirror to val
     }
 
     total_denom_added = 0

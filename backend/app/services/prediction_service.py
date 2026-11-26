@@ -358,17 +358,17 @@ def predict_denomination(
     # Guard 4b: Anti-False ₹100 Protection (Corrects warm currency wrongly labeled as ₹100)
     # Only applies when CNN confidence is low / borderline (< 0.70) or predicted_class is "unknown".
     # NEVER override a high-confidence CNN prediction of ₹100!
-    if confidence < 0.70 and predicted_class == "100" and orange_yellow_pct >= 0.35 and lavender_pct < 0.12:
-        if chocolate_brown_pct >= 0.28 and chocolate_brown_pct >= orange_yellow_pct * 0.80:
+    if confidence < 0.70 and predicted_class == "100" and orange_yellow_pct >= 0.35 and lavender_pct < 0.10:
+        if chocolate_brown_pct >= 0.20 and chocolate_brown_pct >= orange_yellow_pct * 0.70:
             predicted_class = "10"
-            confidence = 0.95
-        elif mean_hue >= 22.0 or green_yellow_pct >= 0.10 or (orange_yellow_pct >= 0.50 and chocolate_brown_pct < 0.35):
+            confidence = max(confidence, 0.95)
+        elif mean_hue >= 22.0 or green_yellow_pct >= 0.12 or (orange_yellow_pct >= 0.50 and chocolate_brown_pct < 0.30):
             # Mahatma Gandhi New Series ₹20 is greenish-yellow / warm ochre (Hue 22-45)
             predicted_class = "20"
-            confidence = 0.96
+            confidence = max(confidence, 0.96)
         else:
             predicted_class = "200"
-            confidence = 0.95
+            confidence = max(confidence, 0.95)
 
     # Guard 5: ₹20 Greenish-Yellow Banknote Confirmation
     # Mahatma Gandhi New Series ₹20 banknotes exhibit greenish-yellow / warm ochre (Hue 22-48).
@@ -384,21 +384,32 @@ def predict_denomination(
                 confidence = max(confidence, 0.95)
 
     # Guard 5b: ₹20 False-Positive Protection
-    # Only applies when confidence is low (< 0.70)
-    if predicted_class == "20" and confidence < 0.70 and green_yellow_pct < 0.08 and chocolate_brown_pct >= 0.28 and chocolate_brown_pct >= orange_yellow_pct * 0.80 and lavender_pct < 0.12:
-        predicted_class = "10"
-        confidence = max(confidence, 0.94)
+    # Only applies when CNN confidence is low / borderline (< 0.70) or ambiguous.
+    # When CNN is high-confidence, trust the retrained deep representation.
+    if confidence < 0.70 and predicted_class == "20":
+        if lavender_pct >= 0.18 and lavender_pct > green_yellow_pct * 1.5:
+            predicted_class = "100"
+            confidence = max(confidence, 0.94)
+        elif cyan_pct >= 0.18 and cyan_pct > green_yellow_pct * 1.5:
+            predicted_class = "50"
+            confidence = max(confidence, 0.94)
+        elif green_yellow_pct < 0.08 and chocolate_brown_pct >= 0.20 and lavender_pct < 0.12:
+            predicted_class = "10"
+            confidence = max(confidence, 0.95)
+        elif green_yellow_pct < 0.06 and orange_yellow_pct >= 0.35 and mean_hue < 20.0:
+            predicted_class = "200"
+            confidence = max(confidence, 0.94)
 
     # Guard 5c: ₹10 vs ₹20 Disambiguation (Greenish-Yellow vs Chocolate Brown)
-    # A genuine ₹20 note is greenish-yellow (mean_hue >= 32.0, green_yellow_pct >= 0.14).
-    # If predicted "10" with borderline confidence (< 0.80), but hue is greenish-yellow, it is ₹20.
-    if predicted_class == "10" and confidence < 0.80 and mean_hue >= 32.0 and green_yellow_pct >= 0.14:
+    # A genuine ₹20 note is greenish-yellow (mean_hue >= 30.0, green_yellow_pct >= 0.14).
+    # If predicted "10" but the note is greenish-yellow with low chocolate brown, it is ₹20.
+    if predicted_class == "10" and (green_yellow_pct >= 0.16 and chocolate_brown_pct < 0.14 or (mean_hue >= 32.0 and green_yellow_pct >= 0.14)):
         predicted_class = "20"
         confidence = max(confidence, 0.95)
 
     # Guard 6: Direct Chocolate Brown ₹10 Physical Match
     # Confirms ₹10 notes or resolves ambiguous/unknown predictions (< 0.70).
-    if (confidence < 0.70 or predicted_class in ["10", "unknown"]) and chocolate_brown_pct >= 0.28 and chocolate_brown_pct >= orange_yellow_pct * 0.80 and chocolate_brown_pct > lavender_pct * 2.0 and green_yellow_pct < 0.12 and cyan_pct < 0.10:
+    if (confidence < 0.70 or predicted_class in ["10", "unknown"]) and chocolate_brown_pct >= 0.20 and chocolate_brown_pct >= orange_yellow_pct * 0.75 and chocolate_brown_pct > lavender_pct * 1.8 and green_yellow_pct < 0.12 and cyan_pct < 0.10:
         predicted_class = "10"
         confidence = max(confidence, 0.95)
 

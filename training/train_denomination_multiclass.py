@@ -90,8 +90,8 @@ def train_multiclass_model(
     dataset_base: Path = Path("dataset/denomination"),
     output_model_path: Path = Path("backend/models/denomination_model.keras"),
     classes_json_path: Path = Path("backend/models/class_names.json"),
-    epochs_head: int = 6,
-    epochs_fine: int = 4,
+    epochs_head: int = 10,
+    epochs_fine: int = 8,
     batch_size: int = 16
 ):
     print("=" * 65)
@@ -162,7 +162,7 @@ def train_multiclass_model(
     # Phase 2: Fine-Tuning top layers of EfficientNetB0
     print("\n--- Phase 2: Fine-Tuning Upper Convolutional Layers ---")
     base_model.trainable = True
-    for layer in base_model.layers[:-20]:
+    for layer in base_model.layers[:-40]:
         layer.trainable = False
     for layer in base_model.layers:
         if isinstance(layer, tf.keras.layers.BatchNormalization):
